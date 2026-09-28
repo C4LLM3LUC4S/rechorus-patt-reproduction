@@ -47,15 +47,16 @@ def main():
                     samples = [r[f'seed{s}'] for s in [14, 42, 2026]]
                     ax.scatter(x + np.array([-.12, 0, .12]), samples, color='black', s=12, zorder=4)
                 ax.set_xticks(range(4), labels, rotation=12)
-                ax.set_ylabel(metric.replace('_unique', '').replace('_Jaccard', ''))
-                ax.set_title(('Grocery' if i == 0 else 'MovieLens-1M') + ' / ' + metric,
+                display_metric = metric.replace('_unique', '').replace('_Jaccard', '')
+                ax.set_ylabel(display_metric)
+                ax.set_title(('Grocery' if i == 0 else 'MovieLens-1M') + ' / ' + display_metric,
                              fontsize=10, loc='left')
                 ax.set_ylim(0, min(1.05, max(m + s for m, s in zip(means, errors)) * 1.25 + .005))
                 ax.grid(axis='y', alpha=.2)
                 ax.set_axisbelow(True)
         fig.suptitle('Test results: mean +/- sample SD; dots = three seeds', fontsize=11)
         fig.tight_layout(rect=(0, 0, 1, .96))
-        for ext in ['svg', 'png']:
+        for ext in ['svg', 'png', 'pdf']:
             fig.savefig(destination / f'{filename}.{ext}', bbox_inches='tight')
         plt.close(fig)
     lines = ['# 正式实验结果表', '', '数值为三个随机种子的均值 ± 样本标准差；不代表置信区间或显著性检验。', '',

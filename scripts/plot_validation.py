@@ -65,7 +65,7 @@ def main():
     fig.tight_layout(rect=(0, .10, 1, 1))
     destination = root / 'report/figures'
     destination.mkdir(parents=True, exist_ok=True)
-    for extension in ['svg', 'png']:
+    for extension in ['svg', 'png', 'pdf']:
         fig.savefig(destination / f'validation_convergence.{extension}', bbox_inches='tight')
     plt.close(fig)
     with (destination / 'validation_convergence.csv').open('w', encoding='utf-8', newline='') as out:

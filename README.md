@@ -17,7 +17,7 @@
 
 ## 环境与数据
 
-验证环境：Python 3.10.11、PyTorch 2.5.1+cu121、NumPy 2.2.6、pandas 2.3.3，RTX 4060 Laptop GPU（8 GB）。CPU也可运行，但未承诺相同速度或逐位数值一致。
+验证环境：Python 3.10.11、PyTorch 2.5.1+cu121、NumPy 2.2.6、pandas 2.3.3，RTX 4060 Laptop GPU（8 GB）。下列集成测试使用CUDA；CPU运行未作完整验证，不承诺相同速度或逐位数值一致。
 
 ```text
 python -m pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
