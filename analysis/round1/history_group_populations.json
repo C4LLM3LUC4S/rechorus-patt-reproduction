@@ -1,0 +1,50 @@
+[
+  {
+    "dataset": "grocery",
+    "group": "1-5",
+    "n_rows": 6724,
+    "n_users": 6724
+  },
+  {
+    "dataset": "grocery",
+    "group": "6-10",
+    "n_rows": 4745,
+    "n_users": 4745
+  },
+  {
+    "dataset": "grocery",
+    "group": "11-20",
+    "n_rows": 2069,
+    "n_users": 2069
+  },
+  {
+    "dataset": "grocery",
+    "group": "21-30",
+    "n_rows": 1143,
+    "n_users": 1143
+  },
+  {
+    "dataset": "ml1m",
+    "group": "1-5",
+    "n_rows": 9,
+    "n_users": 2
+  },
+  {
+    "dataset": "ml1m",
+    "group": "6-10",
+    "n_rows": 10,
+    "n_users": 2
+  },
+  {
+    "dataset": "ml1m",
+    "group": "11-20",
+    "n_rows": 37,
+    "n_users": 6
+  },
+  {
+    "dataset": "ml1m",
+    "group": "21-30",
+    "n_rows": 2818,
+    "n_users": 225
+  }
+]

@@ -13,6 +13,7 @@ import numpy as np
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', type=Path, required=True)
+    parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     root = args.root
     audit = json.loads((root / 'analysis/prediction_audit.json').read_text())
@@ -26,8 +27,8 @@ def main():
     font_manager.findfont('Times New Roman', fallback_to_default=False)
     plt.rcParams.update({'font.family': 'Times New Roman', 'font.size': 10,
                          'axes.spines.top': False, 'axes.spines.right': False,
-                         'svg.fonttype': 'path', 'savefig.dpi': 220})
-    destination = root / 'report/figures'
+                         'pdf.fonttype': 42, 'svg.fonttype': 'path', 'savefig.dpi': 220})
+    destination = args.output or root / 'report/figures'
     destination.mkdir(parents=True, exist_ok=True)
     for filename, metrics in [('final_accuracy', ['HR@20', 'NDCG@20']),
                               ('final_diversity', ['CC_unique@20', 'ILD_Jaccard_unique@20'])]:

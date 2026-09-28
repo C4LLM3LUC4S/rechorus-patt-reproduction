@@ -60,6 +60,31 @@ python scripts/run_rechorus.py --root PROJECT_ROOT --model PAtt2 --run-name exam
 
 SASRec替换模型参数为 `--model SASRec --num_heads 1`，GRU4Rec为 `--model GRU4Rec`。LC-PAtt₂使用 `--model PAtt2 --length_scale 1`。MovieLens额外指定 `--path PROJECT_ROOT/data/processed --dataset ML_1MTOPK`。
 
+## 第一轮补充分析
+
+原主表不变。历史长度分组和用户等权分析使用固定预测，属于事后诊断，不参与模型选择。Grocery上PAtt₂的总体优势主要来自短历史；MovieLens按用户等权时，LC-PAtt₂不再高于基础模型。分组样本数和三个种子的统计量见`analysis/round1/history_group_summary.csv`。
+
+另完成6次前馈宽度对照：仅将PAtt₂的前馈中间宽度从4d改为d，固定原学习率，两个数据集各运行14、42、2026三个种子。独立复算、共享配置与候选行对齐全部通过。
+
+| 数据集 | 窄前馈参数量 | NDCG@20（均值±样本标准差） |
+|---|---:|---:|
+| Grocery | 572,480 | 0.3699±0.0020 |
+| MovieLens-1M | 214,848 | 0.4726±0.0061 |
+
+两数据集的均值均略低于原PAtt₂。该对照未重新搜索学习率；与SASRec仍有位置编码、输入归一化及激活等差异，不是只替换注意力的消融。完整指标见`analysis/round1/width_control_audit.json`。中断的Grocery种子2026保留本地失败记录，按相同配置从头恢复；不把未完成运行计入结果。
+
+完成主实验后运行：
+
+```text
+python scripts/analyze_history_groups.py --root PROJECT_ROOT
+python scripts/plot_group_diagnostics.py --root PROJECT_ROOT
+python scripts/test_width_control.py --root PROJECT_ROOT
+python scripts/run_width_queue.py --root PROJECT_ROOT
+python scripts/analyze_width_control.py --root PROJECT_ROOT
+```
+
+已有完整运行会在核对后跳过，不能同时启动多个队列。`PASS_PARTIAL`表示剩余运行尚未通过完整验收。前馈控制不修改原`implementation/PAtt2.py`。本轮协议见`planning/第一轮优化协议.md`。
+
 ## 比较范围
 
 - 基础PAtt₂按论文公式独立重建，不是作者代码逐行运行。差异见 `planning/paper_implementation_audit.md`。

@@ -14,6 +14,7 @@ from matplotlib import font_manager
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', required=True, type=Path)
+    parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     root = args.root
     selected = json.loads((root / 'planning/selected_learning_rates.json').read_text())
@@ -21,7 +22,7 @@ def main():
     plt.rcParams.update({'font.family': 'Times New Roman', 'font.size': 10,
                          'axes.titlesize': 12, 'axes.labelsize': 11,
                          'axes.spines.top': False, 'axes.spines.right': False,
-                         'svg.fonttype': 'path', 'savefig.dpi': 220})
+                         'pdf.fonttype': 42, 'svg.fonttype': 'path', 'savefig.dpi': 220})
     models = [('patt2', 'PAtt2', '#0077BB', 'o', '-'),
               ('sasrec', 'SASRec', '#009988', 's', '--'),
               ('gru4rec', 'GRU4Rec', '#777777', '^', '-.'),
@@ -63,7 +64,7 @@ def main():
     fig.legend(handles, labels, loc='lower center', ncol=4, frameon=False,
                bbox_to_anchor=(.5, -.005))
     fig.tight_layout(rect=(0, .10, 1, 1))
-    destination = root / 'report/figures'
+    destination = args.output or root / 'report/figures'
     destination.mkdir(parents=True, exist_ok=True)
     for extension in ['svg', 'png', 'pdf']:
         fig.savefig(destination / f'validation_convergence.{extension}', bbox_inches='tight')
