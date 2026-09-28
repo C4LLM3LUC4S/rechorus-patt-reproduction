@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+sources/
+data/
+runs/
+interrupted/
+planning/*.log
+planning/queue*
+report/qa/
+*.aux
+*.log
+*.out

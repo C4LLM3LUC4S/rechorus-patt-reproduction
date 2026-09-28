@@ -1,27 +1,78 @@
-# PAtt reproduction in ReChorus
+# ReChorus 中的概率注意力序列推荐
 
-Course project on sequential recommendation. **Work in progress: experiments have not been run; no reproduction results are claimed.**
+实现 KDD 2024 论文 **Probabilistic Attention for Sequential Recommendation** 的基础 PAtt₂，并比较 SASRec、GRU4Rec 和长度校准变体 LC-PAtt₂。本仓库不是官方实现，不包含 PAtt₃ 和 DPAtt。
 
-## Paper
+论文：Yuli Liu, Christian Walder, Lexing Xie, Yiqun Liu. KDD 2024, 1956–1967. https://doi.org/10.1145/3637528.3671733
 
-Yuli Liu, Christian Walder, Lexing Xie, and Yiqun Liu. *Probabilistic Attention for Sequential Recommendation*. KDD 2024, pp. 1956–1967.
+## 结果
 
-- Paper: https://doi.org/10.1145/3637528.3671733
-- Author implementation: https://github.com/l-lyl/PAtt
-- Target framework: https://github.com/THUwangcy/ReChorus
+完成16次学习率调参和24次正式实验。测试 NDCG@20 为三个种子的均值±样本标准差，后者不是置信区间。
 
-## Planned experiments
+| 数据集 | PAtt₂ | SASRec | GRU4Rec | LC-PAtt₂ |
+|---|---:|---:|---:|---:|
+| Grocery | 0.3708±0.0014 | 0.3393±0.0007 | 0.3071±0.0039 | 0.3512±0.0002 |
+| MovieLens-1M | 0.4750±0.0017 | 0.4697±0.0032 | 0.4645±0.0016 | 0.4771±0.0020 |
 
-- Port PAtt into ReChorus and check numerical agreement with the author implementation.
-- Compare against SASRec and GRU4Rec under a shared evaluation protocol.
-- Use Grocery and MovieLens-1M through ReChorus-provided data or preprocessing, subject to metadata validation.
-- Report ranking accuracy, recommendation diversity, runtime, and controlled ablations.
-- Record seeds, configurations, dataset statistics, and original logs before reporting results.
+长度校准没有获得跨数据集一致提升。全部正式预测通过独立准确性复算。`analysis/final_metrics.json`包含完整指标及各次种子结果，试跑结果不计入。
 
-## Current status
+## 环境与数据
 
-Paper selected; author code inspected. Full-paper review, data/kernel preparation, framework integration, and experiments remain pending. The default author configuration references an item-kernel file that is not bundled in the inspected checkout; CUDA-specific operations also require checking before execution.
+验证环境：Python 3.10.11、PyTorch 2.5.1+cu121、NumPy 2.2.6、pandas 2.3.3，RTX 4060 Laptop GPU（8 GB）。CPU也可运行，但未承诺相同速度或逐位数值一致。
 
-## Attribution
+```text
+python -m pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+python -m pip install -r requirements.txt
+git clone https://github.com/THUwangcy/ReChorus sources/ReChorus
+git -C sources/ReChorus checkout c164ec4303cc20ddcfbd1b57de366a481811d1e5
+```
 
-This repository is not the official implementation. Third-party code and data will retain their source attribution and applicable license notices.
+下文 `PROJECT_ROOT` 替换为本仓库绝对路径。自行创建 `planning` 与 `data/raw` 目录。Grocery使用框架自带文件。从 https://grouplens.org/datasets/movielens/1m/ 下载 `ml-1m.zip`，放在 `data/raw/ml-1m.zip`。不再分发原始及处理数据。
+
+```text
+python scripts/prepare_movielens.py --root PROJECT_ROOT
+python scripts/audit_inputs.py --root PROJECT_ROOT --out PROJECT_ROOT/planning/input_audit.json
+python scripts/audit_protocol.py --root PROJECT_ROOT
+python scripts/test_patt.py --root PROJECT_ROOT
+python scripts/smoke_baselines.py --root PROJECT_ROOT
+```
+
+数据准备核对官方压缩包MD5，且拒绝覆盖已有处理目录。需要重新处理时应先保存原目录。
+
+## 完整实验
+
+```text
+python scripts/run_experiment_queue.py --root PROJECT_ROOT
+python scripts/audit_predictions.py --root PROJECT_ROOT
+python scripts/aggregate_final.py --root PROJECT_ROOT
+python scripts/plot_validation.py --root PROJECT_ROOT
+python scripts/plot_final_results.py --root PROJECT_ROOT
+```
+
+队列共40次。每模型、每数据集搜索学习率0.001与0.0001，调参种子14，仅用验证NDCG@20选择。随后固定学习率，以种子14、42、2026从头训练。共享嵌入64、历史30、batch256、Adam、dropout0.3、最多50轮、早停耐心10、一个训练负例。PAtt₂的λ=4，SASRec单层单头。详细规则见 `planning/正式实验协议_v1.md`。
+
+每次运行保留配置、日志、权重和预测。相同名称不覆盖旧结果；完整运行核对配置后跳过，不完整运行停止并要求检查。状态文件短暂占用只重试元数据写入，不自动重跑失败训练。`PASS_PARTIAL`不表示完整验收，聚合要求24次正式结果齐全。图表使用Times New Roman，需要本机有该字体；生成后仍须目视检查。
+
+单次试跑（不进入正式结果）：
+
+```text
+python scripts/run_rechorus.py --root PROJECT_ROOT --model PAtt2 --run-name example_grocery --stage pilot --epoch 1
+```
+
+SASRec替换模型参数为 `--model SASRec --num_heads 1`，GRU4Rec为 `--model GRU4Rec`。LC-PAtt₂使用 `--model PAtt2 --length_scale 1`。MovieLens额外指定 `--path PROJECT_ROOT/data/processed --dataset ML_1MTOPK`。
+
+## 比较范围
+
+- 基础PAtt₂按论文公式独立重建，不是作者代码逐行运行。差异见 `planning/paper_implementation_audit.md`。
+- MovieLens使用评分≥4、5-core、全局时间跨度划分、warm-start与99个无重复候选负例；不同于原文所有评分、10-core与留一法，不能直接比较绝对分数。
+- Grocery主准确性保留框架重复候选，另做去重敏感性分析；多样性在去重列表计算。
+- 使用滚动观测历史，较早验证/测试交互可进入更晚目标历史，不是固定训练历史评价。
+- PAtt₂前馈宽度4d、框架SASRec为d；参数量不同，不能将差异全部归因于注意力。
+- 两档学习率、三个种子不构成全局最优搜索，不据此提出显著性或线上效果结论。
+
+## 来源和许可
+
+ReChorus：https://github.com/THUwangcy/ReChorus ，MIT，固定提交 `c164ec4303cc20ddcfbd1b57de366a481811d1e5`。
+
+作者参考代码：https://github.com/l-lyl/PAtt ，GPL-3.0，核查提交 `cefe8b639f9a03c7c4e4da515046909079b472a3`，不随本仓库打包。
+
+不重新授权上游代码或数据。新增文件尚未另行授予开源许可，不将全部内容笼统标记MIT。数据使用须遵守原始来源条款。
