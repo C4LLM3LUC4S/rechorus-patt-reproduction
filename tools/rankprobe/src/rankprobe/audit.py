@@ -158,12 +158,27 @@ def audit_run(
     ties = _tie_analysis(unique, protocol, qrels)
     unknown = [r for r in unique if r.relevance is None]
     supplied_labels = {(r.query_id, r.item_id) for r in checked if r.relevance is not None}
+    candidate_keys = {(r.query_id, r.item_id) for r in unique}
+    explicit_unjudged = {
+        (query_id, item_id)
+        for query_id, judgments in (qrels or {}).items()
+        for item_id, relevance in judgments.items()
+        if relevance is None
+    }
+    unjudged_candidates = explicit_unjudged & candidate_keys
+    inline_labeled_unjudged = unjudged_candidates & supplied_labels
+    known_labels = supplied_labels | {
+        (query_id, item_id)
+        for query_id, judgments in (qrels or {}).items()
+        for item_id, relevance in judgments.items()
+        if relevance is not None
+    }
     assumed = implicit_qrels_zero = 0
     for row in unique:
         if (row.query_id, row.item_id) in supplied_labels:
             continue
         judgments = None if qrels is None else qrels.get(row.query_id)
-        if judgments is not None and row.item_id in judgments:
+        if judgments is not None and judgments.get(row.item_id) is not None:
             continue
         if judgments is not None and protocol.qrels_complete:
             implicit_qrels_zero += 1
@@ -249,6 +264,29 @@ def audit_run(
                 },
             )
         )
+    if explicit_unjudged:
+        findings.append(
+            _finding(
+                "explicit_unjudged_qrels",
+                "warning",
+                "Qrels explicitly contain unjudged items",
+                "TREC -1 or API None records no source judgment, not a verified zero. Known inline labels are retained; otherwise relevance stays unknown unless unjudged='nonrelevant' explicitly assumes zero. These qrels cannot support a complete-qrels declaration.",
+                {
+                    "entries": len(explicit_unjudged),
+                    "retrieved_candidates": len(unjudged_candidates),
+                    "known_inline_labels": len(inline_labeled_unjudged),
+                    "assumed_nonrelevant_candidates": len(
+                        unjudged_candidates - supplied_labels
+                    )
+                    if protocol.unjudged == "nonrelevant"
+                    else 0,
+                    "examples": [
+                        {"query_id": query_id, "item_id": item_id}
+                        for query_id, item_id in sorted(explicit_unjudged)[:_SAMPLE_LIMIT]
+                    ],
+                },
+            )
+        )
     if missing_queries:
         findings.append(
             _finding(
@@ -264,7 +302,7 @@ def audit_run(
             _finding(
                 "qrels_queries_without_predictions",
                 "warning",
-                "Judged queries have no submitted predictions",
+                "Qrels queries have no submitted predictions",
                 "These qrels query IDs are absent from the run. Macro averages cover only submitted prediction queries, not the entire qrels query set. Missing predictions are not automatically scored as zero; confirm the intended evaluation universe.",
                 {"count": len(qrels_only_queries), "query_ids": qrels_only_queries[:_SAMPLE_LIMIT]},
             )
@@ -303,11 +341,15 @@ def audit_run(
             "rows": len(checked),
             "unique_candidates": len(unique),
             "duplicate_rows": len(checked) - len(unique),
-            "judged_candidates": len(unique) - len(unknown),
+            "judged_candidates": len(candidate_keys & known_labels),
+            "resolved_candidates": len(unique) - len(unknown),
             "unknown_candidates": len(unknown),
             "assumed_nonrelevant_candidates": assumed,
             "implicit_complete_qrels_zeros": implicit_qrels_zero,
             "qrels_queries": len(qrels) if qrels is not None else None,
+            "explicit_unjudged_qrels": len(explicit_unjudged),
+            "explicit_unjudged_qrels_candidates": len(unjudged_candidates),
+            "inline_labeled_unjudged_qrels_candidates": len(inline_labeled_unjudged),
             "qrels_queries_without_predictions": len(qrels_only_queries),
             "query_universe": "submitted_prediction_queries",
         },

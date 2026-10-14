@@ -8,6 +8,7 @@ The CLI installs as `rankprobe`; `python -m rankprobe` uses the same entry point
 python -m rankprobe audit predictions.csv --name baseline --out reports/baseline
 python -m rankprobe compare --run baseline=baseline.csv --run treatment=treatment.jsonl --out reports/compare
 python -m rankprobe demo --out reports/demo
+python -m rankprobe compare --run baseline=examples/trec/baseline.run --run reordered=examples/trec/reordered.run --qrels examples/trec/judgments.qrels --cutoffs 1,2 --out reports/retrieval
 ```
 
 `compare` requires at least two distinctly named runs. A run name describes a report entry; it does not change query or item identity. `demo` uses a built-in, invented example that deliberately contains problems.
@@ -18,7 +19,9 @@ python -m rankprobe demo --out reports/demo
 | `--tie-policy item_id` | item_id | Ascending string ID, or `input` for stable input order |
 | `--gain linear` | linear | NDCG relevance gain, or `exp2` |
 | `--relevance-threshold 0` | 0 | MRR / Recall consider label strictly above this threshold relevant; NDCG remains graded |
-| `--qrels judgments.csv` | none | Independent CSV / JSONL judgments |
+| `--input-format auto` | auto | Detect each prediction file by extension, or explicitly select `csv`, `jsonl`, or `trec` |
+| `--qrels judgments.csv` | none | Independent CSV / JSONL / TREC judgments |
+| `--qrels-format auto` | auto | Detect the judgment file by extension, or explicitly select `csv`, `jsonl`, or `trec` |
 | `--qrels-complete` | false | Explicitly assert relevance-denominator completeness |
 | `--unjudged unknown` | unknown | Preserve unknown labels, or explicitly choose `nonrelevant` |
 | `--out DIR` | required | Destination for report.json and report.html |
@@ -26,6 +29,16 @@ python -m rankprobe demo --out reports/demo
 | `--fail-on error` | error | Findings trigger exit 1 at `error`, `warning`, or `never` |
 
 Cutoffs are sorted and deduplicated. The declared protocol is saved in JSON. Absolute input paths and raw command lines are not stored as provenance; source filenames and hashes are recorded. Identifiers in the findings still require a privacy review before sharing.
+
+In an audit summary, `judged_candidates` counts unique candidates with an actual known judgment after label resolution. `resolved_candidates` also includes unknowns assigned zero under `--unjudged nonrelevant`. Their difference reflects an assumption, not newly collected judgments.
+
+Auto detection accepts `.csv`, `.jsonl`, prediction `.run` / `.trec`, and judgment `.qrels`. For `.txt` files, declare the format explicitly:
+
+```sh
+python -m rankprobe audit results.txt --input-format trec --qrels labels.txt --qrels-format trec --out reports/trec-text
+```
+
+TREC rank columns are validated but sorting uses scores and the selected tie rule. Explicit `-1` judgments remain unknown unless the protocol explicitly assumes unjudged items nonrelevant. Do not add `--qrels-complete` to a partially judged file. See [input-format.md](input-format.md) for the full contract and [try-it.md](try-it.md) for a five-minute walkthrough.
 
 ## Exit codes and automation
 
@@ -66,6 +79,6 @@ runs = {
 comparison = compare_runs(runs, protocol)
 ```
 
-Independent qrels use a nested dictionary of `{query_id: {item_id: relevance}}`, or the loader `rankprobe.io.read_qrels`. Pass the dictionary as `qrels=` to `audit_run` or `compare_runs`. Inputs are validated; contradictory labels raise `ValueError`. The API returns ordinary dictionaries and performs no file writes until you call `write_report`.
+Independent qrels use a nested dictionary of `{query_id: {item_id: relevance}}`, where `None` represents an explicit unknown, or the loader `rankprobe.io.read_qrels`. Both loaders accept a keyword-only `format=` argument with `auto`, `csv`, `jsonl`, or `trec`. For example, `read_predictions("retrieval.txt", format="trec")` reads six-column run text without relying on the extension. Pass the qrels dictionary as `qrels=` to `audit_run` or `compare_runs`. Inputs are validated; contradictory known labels raise `ValueError`. The API returns ordinary dictionaries and performs no file writes until you call `write_report`.
 
 The library-generated report contains the audit data; the CLI additionally records input-file provenance. Pin the alpha version or commit if integrating this API. The report schema and public functions may change during early development.

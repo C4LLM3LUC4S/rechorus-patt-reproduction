@@ -1,5 +1,19 @@
 # Verification record
 
+## Retrieval alpha (`0.1.0a2`, 2026-10-15)
+
+The updated local suite passed **151 tests and 10 subtests** on Windows / Python 3.12.5; Ruff passed. These include TREC format errors, preserved identifiers and file order, explicit format overrides, unknown-only qrels, inline-label resolution, rejected contradictory completeness assertions, cross-run coverage, and source provenance.
+
+An independent reviewer ran 67 relevant tests and 10 subtests, plus four end-to-end probes covering misleading file extensions, unknown-only and absent queries, completeness combined with an explicit zero assumption, and cross-run label disagreement. No reproducible functional error was found. The review corrected documentation that had implied CSV/JSONL unknown qrels were accepted and clarified the conservative MRR exclusion rule.
+
+Seven documented retrieval flows were exercised. Hand calculations agreed within `1e-12`: default MRR@2 is 0.25 versus 0.5, but both matched-pool values are 0.5; default NDCG@2 is approximately 0.315464876786 versus 0.630929753571, with equal matched-pool values. Input-order ties and the explicit nonrelevant assumption matched their documented results. These are invented cases, not public benchmark findings. All 41 local links checked across 16 Markdown documents were valid at that check.
+
+A fresh virtual environment installed the built `0.1.0a2` wheel with `--no-deps`. Isolated `python -I -m rankprobe compare` on the retrieval example produced both reports, and the installed console entry point reported the correct version. Distribution checks verified wheel CRCs, version, absence of core runtime dependencies, exact packaged Python source bytes, and source-package examples/documentation/tests. The first packaging check exposed missing `.run`/`.qrels` fixtures; the manifest was corrected and rebuilt. The check is now a CI step.
+
+The previous `0.1.0a1` remote commit `07ce7e586f857da124e32b4f402514fbee3c41e0` passed the six Windows/Ubuntu and Python 3.10/3.12/3.13 jobs in [run 38605754159](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/actions/runs/38605754159). That result does not cover these new changes; inspect the updated PR commit's runs for current remote validation.
+
+## Initial implementation (`0.1.0a1`)
+
 Recorded on 2026-10-15 for the initial `0.1.0a1` implementation. These observations describe checks actually run locally, not remote CI, outside adoption, or a complete benchmark study. Further changes require rerunning affected checks.
 
 ## Public examples
@@ -63,4 +77,4 @@ and 390px mobile width; no page-wide horizontal overflow was observed.
 
 ## Pending evidence
 
-Configured cross-platform CI does not count as passed until remote jobs run. External users, repeat adoption, paid demand, and research findings have not yet been established. See [validation-plan.md](validation-plan.md) for the remaining decision gates.
+Cross-platform CI must be checked for each changed commit. External users, repeat adoption, paid demand, and research findings have not yet been established. See [validation-plan.md](validation-plan.md) for the remaining decision gates.

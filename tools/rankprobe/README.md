@@ -4,7 +4,7 @@
 
 RankProbe is a local, model-free audit tool for recommendation and retrieval experiments. Give it candidate scores and relevance judgments; it produces a readable HTML report and machine-readable JSON with examples, metric assumptions, and sensitivity results. No model inference, cloud account, or API key is needed. The core uses the Python standard library.
 
-[中文说明](README.zh-CN.md) · [Input contract](docs/input-format.md) · [Metric semantics](docs/metrics.md) · [CLI / Python API](docs/usage.md) · [Cases](examples/README.md) · [Limitations](docs/limitations.md)
+[中文说明](README.zh-CN.md) · [Input contract](docs/input-format.md) · [Metric semantics](docs/metrics.md) · [CLI / Python API](docs/usage.md) · [Five-minute trial](docs/try-it.md) · [Limitations](docs/limitations.md)
 
 ## Start in two minutes
 
@@ -67,6 +67,14 @@ Independent judgments use a CSV or JSONL file with `query_id,item_id,relevance`.
 python -m rankprobe audit examples/unjudged.csv --qrels examples/qrels.csv --qrels-complete --out reports/qrels
 ```
 
+TREC retrieval outputs can be read directly, without reformatting scores:
+
+```sh
+python -m rankprobe audit results.run --qrels judgments.qrels --out reports/retrieval
+```
+
+For `.txt` files, select `--input-format trec` and `--qrels-format trec` explicitly. The run's score determines ordering; its declared rank is ignored. A qrels relevance of `-1` remains unknown. Declaring complete qrels while an explicit unjudged entry remains is rejected. See the [synthetic retrieval walkthrough](examples/trec/README.md) for a case where dropping a difficult query doubles MRR without improving the common queries.
+
 MRR and NDCG are reported with their evaluated-query counts and scope. Recall is available only with explicitly declared complete qrels. Candidate-pool metrics do not measure full-corpus retrieval quality. A completeness flag records your assertion; RankProbe cannot verify it from scores alone.
 
 ## Existing framework outputs
@@ -93,7 +101,7 @@ python -m build
 
 The CI configuration targets Python 3.10, 3.12, and 3.13 on Ubuntu and Windows. A configuration file alone is not evidence that those remote jobs passed; inspect the workflow runs for the checked commit.
 
-This is an early `0.1.0a1` implementation. The [local verification record](docs/verification.md) distinguishes executed checks from pending evidence. There are no claimed external adopters, revenue, benchmark certification, or published research results. [The validation plan](docs/validation-plan.md) describes what would establish practical value. Contributions should add an independently checkable example and document changed semantics. Please report problems with a small synthetic input instead of uploading private data.
+This is an early `0.1.0a2` implementation. The [verification record](docs/verification.md) distinguishes executed checks from pending evidence. There are no claimed external adopters, revenue, benchmark certification, or published research results. [The validation plan](docs/validation-plan.md) and [roadmap](docs/roadmap.md) describe what would establish practical value. Contributions should add an independently checkable example and document changed semantics. Please report problems with a small synthetic input instead of uploading private data.
 
 ## License and citation
 

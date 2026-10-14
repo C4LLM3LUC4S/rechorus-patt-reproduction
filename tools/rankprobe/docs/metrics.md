@@ -11,13 +11,17 @@ A relevance value greater than zero is relevant for MRR and Recall. NDCG uses gr
 - `linear`: `gain(r) = r`.
 - `exp2`: `gain(r) = 2**r - 1`.
 
+TREC qrels `-1` and Python qrels `None` record an explicit absence of a source judgment. They do not override a known inline label or become zero by default. Known qrels remain authoritative; conflicting known inline labels fail validation. An explicit unknown anywhere in the qrels contradicts `qrels_complete=True`, even if that document was not retrieved. Only the separate `unjudged=nonrelevant` assumption can resolve an otherwise unknown candidate as zero; it does not make the qrels complete.
+
+The summary's `judged_candidates` counts unique candidates with known supplied labels. `resolved_candidates` also includes values introduced by explicit assumptions or the complete-qrels closure. `unknown_candidates` counts candidates still unresolved after applying the protocol. Inspect the assumption counts before interpreting label coverage.
+
 Duplicate `(query_id, item_id)` entries are diagnosed before unique-item evaluation. The declared policy keeps the maximum score for an item. Conflicting relevance is evidence of inconsistent judgments; a duplicate's score difference does not establish which row came from a valid pipeline. Raw-row versus unique-item comparisons are sensitivity diagnostics. Do not silently replace a benchmark's frozen primary procedure with deduplicated scores.
 
 ## MRR@k
 
 For each query, reciprocal rank is `1 / rank` for the first relevant item within cutoff k and zero if none is found in that cutoff. MRR is the arithmetic mean across eligible queries; each query has equal weight.
 
-When unknown labels could alter the evaluated top-k result, the query is excluded under `unjudged=unknown`. Treating unknown candidates as nonrelevant is available only as an explicit protocol choice. The report includes eligible-query counts, so a mean computed on a small judged subset is not mistaken for full coverage.
+Under `unjudged=unknown`, a query is excluded whenever any candidate within top k has an unknown label. This conservative rule also excludes a query whose first item is known relevant but a later top-k item is unknown. Treating unknown candidates as nonrelevant is available only as an explicit protocol choice. The report includes eligible-query counts, so a mean computed on a small judged subset is not mistaken for full coverage.
 
 ## NDCG@k
 

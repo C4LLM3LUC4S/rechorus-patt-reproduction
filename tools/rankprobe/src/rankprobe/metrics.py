@@ -14,7 +14,7 @@ from typing import Iterable
 
 from .model import Protocol, Row
 
-Qrels = dict[str, dict[str, float]]
+Qrels = dict[str, dict[str, float | None]]
 
 
 def validate_inputs(
@@ -55,7 +55,14 @@ def validate_inputs(
             for item_id, relevance in judgments.items():
                 if not isinstance(item_id, str) or not item_id:
                     raise ValueError("qrels item IDs must be nonempty strings")
-                _check_relevance(relevance)
+                if relevance is None:
+                    if protocol.qrels_complete:
+                        raise ValueError(
+                            "qrels_complete=True contradicts explicitly unjudged qrels "
+                            f"for query {query_id!r}, item {item_id!r}"
+                        )
+                else:
+                    _check_relevance(relevance)
     labels: dict[tuple[str, str], float] = {}
     for row in rows:
         key = row.query_id, row.item_id
@@ -67,7 +74,7 @@ def validate_inputs(
             labels[key] = float(row.relevance)
         if qrels is not None and row.query_id in qrels:
             judgments = qrels[row.query_id]
-            if row.item_id in judgments:
+            if row.item_id in judgments and judgments[row.item_id] is not None:
                 if row.relevance is not None and row.relevance != judgments[row.item_id]:
                     raise ValueError(
                         f"row relevance conflicts with qrels for query {row.query_id!r}, item {row.item_id!r}"
@@ -101,13 +108,17 @@ def group_rows(rows: Iterable[Row]) -> dict[str, list[Row]]:
 
 
 def resolve_rows(rows: list[Row], protocol: Protocol, qrels: Qrels | None) -> list[Row]:
-    """Resolve duplicate labels, authoritative qrels, then explicit assumptions."""
+    """Resolve known labels, authoritative known qrels, then explicit assumptions.
+
+    An explicit unjudged qrels entry preserves a known inline label. It records
+    the absence of a source judgment, not evidence against another known label.
+    """
     supplied = {(r.query_id, r.item_id): r.relevance for r in rows if r.relevance is not None}
     result = []
     for row in rows:
         relevance = supplied.get((row.query_id, row.item_id))
         if qrels is not None and row.query_id in qrels:
-            if row.item_id in qrels[row.query_id]:
+            if row.item_id in qrels[row.query_id] and qrels[row.query_id][row.item_id] is not None:
                 relevance = qrels[row.query_id][row.item_id]
             elif protocol.qrels_complete:
                 relevance = 0.0
@@ -139,7 +150,7 @@ def _reference_pool(
     query_id: str, candidates: list[Row], protocol: Protocol, qrels: Qrels | None
 ) -> tuple[list[float], str]:
     if qrels is not None and query_id in qrels:
-        pool = dict(qrels[query_id])
+        pool = {item: rel for item, rel in qrels[query_id].items() if rel is not None}
         for row in candidates:
             if row.relevance is not None:
                 pool[row.item_id] = row.relevance

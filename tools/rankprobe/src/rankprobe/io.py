@@ -26,10 +26,27 @@ def _reject_constant(value: str) -> None:
     raise ValueError(f"non-finite JSON number: {value}")
 
 
-def _records(path: Path, required: set[str]) -> Iterator[tuple[int, dict]]:
+def _input_format(path: Path, format: str, *, qrels: bool = False) -> str:
+    if format not in {"auto", "csv", "jsonl", "trec"}:
+        raise InputError(f"{path}: format must be auto, csv, jsonl, or trec")
+    if format != "auto":
+        return format
+    extension = path.suffix.lower()
+    if extension in {".csv", ".jsonl"}:
+        return extension[1:]
+    trec_extensions = {".qrels"} if qrels else {".run", ".trec"}
+    if extension in trec_extensions:
+        return "trec"
+    supported = ".csv, .jsonl, and .qrels" if qrels else ".csv, .jsonl, .run, and .trec"
+    raise InputError(
+        f"{path}: supported extensions are {supported}; use format='trec' for TREC text files"
+    )
+
+
+def _records(path: Path, required: set[str], format: str) -> Iterator[tuple[int, dict]]:
     try:
         with path.open("r", encoding="utf-8-sig", newline="") as handle:
-            if path.suffix.lower() == ".csv":
+            if format == "csv":
                 reader = csv.DictReader(handle, strict=True)
                 fields = reader.fieldnames
                 if not fields:
@@ -45,7 +62,7 @@ def _records(path: Path, required: set[str]) -> Iterator[tuple[int, dict]]:
                     if any(value is None for value in record.values()):
                         raise InputError(f"{path}:{reader.line_num}: missing cells")
                     yield reader.line_num, record
-            elif path.suffix.lower() == ".jsonl":
+            elif format == "jsonl":
                 for line_number, line in enumerate(handle, 1):
                     if not line.strip():
                         continue
@@ -63,9 +80,26 @@ def _records(path: Path, required: set[str]) -> Iterator[tuple[int, dict]]:
                             f"{path}:{line_number}: missing fields: {', '.join(sorted(missing))}"
                         )
                     yield line_number, record
-            else:
-                raise InputError(f"{path}: supported extensions are .csv and .jsonl")
     except (OSError, UnicodeError, csv.Error) as exc:
+        raise InputError(f"{path}: cannot read input: {exc}") from exc
+
+
+def _trec_records(path: Path, columns: int) -> Iterator[tuple[int, list[str]]]:
+    try:
+        with path.open("r", encoding="utf-8-sig") as handle:
+            for line_number, line in enumerate(handle, 1):
+                if "\x00" in line:
+                    raise InputError(f"{path}:{line_number}: TREC input cannot contain NUL characters")
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                fields = stripped.split()
+                if len(fields) != columns:
+                    raise InputError(
+                        f"{path}:{line_number}: expected exactly {columns} whitespace-separated TREC fields"
+                    )
+                yield line_number, fields
+    except (OSError, UnicodeError) as exc:
         raise InputError(f"{path}: cannot read input: {exc}") from exc
 
 
@@ -83,10 +117,29 @@ def _float(value: object, field: str, *, optional: bool = False) -> float | None
     return result
 
 
-def read_predictions(path: str | Path) -> list[Row]:
+def read_predictions(path: str | Path, *, format: str = "auto") -> list[Row]:
+    """Read CSV/JSONL or six-column TREC input without changing file order.
+
+    TREC iteration, declared rank, and tag are not ranking inputs. Rank must
+    still be a non-negative integer; score and the audit's tie policy govern
+    evaluation. Ambiguous extensions require an explicit format.
+    """
     source = Path(path)
+    selected = _input_format(source, format)
     rows = []
-    for line_number, record in _records(source, {"query_id", "item_id", "score"}):
+    if selected == "trec":
+        for line_number, fields in _trec_records(source, 6):
+            query, _iteration, item, rank, score, _tag = fields
+            try:
+                if not rank.isascii() or not rank.isdigit():
+                    raise ValueError("rank must be a non-negative integer (ignored for ordering)")
+                rows.append(Row(query, item, _float(score, "score")))
+            except ValueError as exc:
+                raise InputError(f"{source}:{line_number}: {exc}") from exc
+        if not rows:
+            raise InputError(f"{source}: no prediction rows")
+        return rows
+    for line_number, record in _records(source, {"query_id", "item_id", "score"}, selected):
         try:
             rows.append(
                 Row(
@@ -103,10 +156,34 @@ def read_predictions(path: str | Path) -> list[Row]:
     return rows
 
 
-def read_qrels(path: str | Path) -> dict[str, dict[str, float]]:
+def read_qrels(path: str | Path, *, format: str = "auto") -> dict[str, dict[str, float | None]]:
+    """Read judgments, preserving TREC -1 as an explicit unknown pair.
+
+    Non-negative graded floats extend TREC's integer judgment convention.
+    CSV/JSONL keep their existing contract requiring known non-negative labels.
+    """
     source = Path(path)
-    result: dict[str, dict[str, float]] = {}
-    for line_number, record in _records(source, {"query_id", "item_id", "relevance"}):
+    selected = _input_format(source, format, qrels=True)
+    result: dict[str, dict[str, float | None]] = {}
+    if selected == "trec":
+        for line_number, fields in _trec_records(source, 4):
+            query, _iteration, item, grade = fields
+            try:
+                _identifier(query, "query_id")
+                _identifier(item, "item_id")
+                relevance = _float(grade, "relevance")
+                if relevance < 0 and relevance != -1:
+                    raise ValueError("TREC relevance must be non-negative or -1 (unjudged)")
+                labels = result.setdefault(query, {})
+                if item in labels:
+                    raise ValueError(f"duplicate qrels entry for query {query!r}, item {item!r}")
+                labels[item] = None if relevance == -1 else relevance
+            except ValueError as exc:
+                raise InputError(f"{source}:{line_number}: {exc}") from exc
+        if not result:
+            raise InputError(f"{source}: no qrels rows")
+        return result
+    for line_number, record in _records(source, {"query_id", "item_id", "relevance"}, selected):
         try:
             query, item = record["query_id"], record["item_id"]
             _identifier(query, "query_id")

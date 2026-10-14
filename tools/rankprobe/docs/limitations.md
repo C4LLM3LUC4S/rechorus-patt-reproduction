@@ -16,6 +16,10 @@ Exact ties can be valid. Deduplicating sampled negatives changes a protocol and 
 
 This is an independent standard-library implementation. It does not run MTEB, RecBole, ReChorus, or their tokenizers. Differences in tie direction, graded gain, relevance thresholds, empty-positive conventions, padding, and averaging can produce legitimate differences. The NPZ adapter supports a documented matrix shape and one-positive-column convention; it does not support every ReChorus task or version.
 
+TREC text input is a file-format interface, not a trec_eval compatibility mode. RankProbe sorts by score, then ascending item ID by default, irrespective of the declared rank column. It requires exact field counts and permits nonnegative fractional qrels grades as an extension. It preserves `-1` and absent judgments as unknown by default. These choices can differ from another evaluator even when both read the same file.
+
+Macro averages cover eligible queries present in each prediction file. Queries found only in qrels produce a warning and partial coverage; they are not automatically scored as zero or included in the average. Compare the eligible query IDs and the matched-pool result before interpreting a change. A system that omits difficult queries can otherwise appear better. The [synthetic TREC case](../examples/trec/README.md) isolates this mechanism without making a benchmark claim.
+
 ## Operational and privacy limits
 
 The audit runs locally and does not need a network connection. It reads whole input files into memory; it is designed for inspectable offline exports rather than a claim of streaming, billion-row scale. No universal memory or throughput guarantee is made.
@@ -24,4 +28,4 @@ HTML reports are self-contained. They include identifiers and selected examples 
 
 ## Early software
 
-The `0.1.0a1` JSON schema can evolve. Pin a version when integrating reports into automated checks. Local tests and configured CI do not establish external adoption or cross-platform results that have not actually run. There is no claim of revenue, security certification, online business improvement, or accepted research output.
+The `0.1.0a2` package and its JSON schema can evolve; the report schema version is currently `0.1`. Pin a package version when integrating reports into automated checks. Local tests and configured CI do not establish external adoption or cross-platform results that have not actually run. There is no claim of revenue, security certification, online business improvement, or accepted research output.

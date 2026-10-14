@@ -1,6 +1,8 @@
 # Input contract
 
-RankProbe reads UTF-8 CSV (including a UTF-8 BOM) and JSONL. Use a header in CSV and one JSON object per nonempty JSONL line. Fields have exact names; aliases such as `label`, `docid`, or `user` are not guessed.
+RankProbe reads UTF-8 CSV, JSONL, and TREC-style run/qrels text, including a UTF-8 BOM. Use a header in CSV and one JSON object per nonempty JSONL line. CSV / JSONL fields have exact names; aliases such as `label`, `docid`, or `user` are not guessed.
+
+With the default `auto` format, `.csv` and `.jsonl` select those loaders; `.run` / `.trec` select TREC predictions and `.qrels` selects TREC judgments. Other extensions require an explicit `--input-format` or `--qrels-format` (`csv`, `jsonl`, or `trec`). File contents are not guessed. In `compare`, `auto` detects each run separately; an explicit input format applies to every run.
 
 ## Prediction rows
 
@@ -47,9 +49,41 @@ request_001,not_retrieved,1
 python -m rankprobe audit predictions.csv --qrels judgments.csv --out reports/audit
 ```
 
-Keep judgments consistent between inline labels and qrels. Conflicts are rejected as invalid input rather than reconciled by an undocumented convention. Duplicate qrels pairs are also rejected. Missing relevance is not automatically zero.
+Keep judgments consistent between inline labels and qrels. Conflicts are rejected as invalid input rather than reconciled by an undocumented convention. Duplicate qrels pairs are also rejected. CSV / JSONL qrels require a known, finite nonnegative relevance value; blank, missing, null, and negative values are rejected. Inline prediction labels may still be unknown.
 
 `--qrels-complete` declares that the independent judgments cover all relevant items for the evaluated queries. This can justify a Recall denominator; it does not prove corpus completeness. Queries absent from the qrels still lack evidence and are not automatically assigned all-zero judgments. `--unjudged nonrelevant` is a separate explicit protocol choice; the report records it.
+
+Explicit unknown qrels judgments are supported through TREC `-1` or Python API `None`. They remain unknown when no known inline judgment is supplied; they do not erase a known inline label. A qrels-completeness assertion is rejected if the supplied judgments include any explicit unknowns, even when `--unjudged nonrelevant` is selected or an inline label is available. Fix or remove the completeness assertion; a convention cannot supply the missing evidence.
+
+## TREC-style retrieval files
+
+Prediction records have exactly six whitespace-separated fields and no header:
+
+```text
+q1 Q0 doc_b 1 0.8 baseline
+q1 Q0 doc_a 2 0.8 baseline
+```
+
+The positions are `query_id iteration item_id rank score run_tag`. Query and item IDs are strings without whitespace. Rank must contain only ASCII digits representing an integer greater than or equal to zero; signs and fractions are rejected. It does not order the result: RankProbe sorts finite scores descending and resolves equal scores with the declared tie policy. Iteration and run tag are parsed but not used. To compare multiple systems, supply separate named files; tags do not split a file into runs.
+
+Judgment records have exactly four whitespace-separated fields:
+
+```text
+q1 0 doc_a 0
+q1 0 doc_b 1
+q1 0 doc_unknown -1
+```
+
+The positions are `query_id iteration item_id relevance`; iteration is not used. Relevance `-1` means explicitly unjudged and becomes `None` in the Python API. It is never silently changed to zero. Other negative values and nonfinite values are rejected. RankProbe also accepts finite nonnegative fractional judgments as an extension; the [official trec_eval qrels contract](https://raw.githubusercontent.com/usnistgov/trec_eval/main/formats.c) specifies integer grades below 128, or -1. Fractional grades do not establish trec_eval compatibility.
+
+Blank lines and lines whose first non-whitespace character is `#` are ignored in these text files. Inline comments, extra columns, embedded whitespace in IDs, NUL characters, and malformed records are rejected. This exact-column contract is stricter than trec_eval's acceptance of trailing run fields.
+
+```sh
+python -m rankprobe audit baseline.run --qrels judgments.qrels --out reports/retrieval
+python -m rankprobe audit results.txt --input-format trec --qrels labels.txt --qrels-format trec --out reports/text-input
+```
+
+The [NIST qrels explanation](https://trec.nist.gov/data/qrels_eng/) documents a historical evaluation convention that treats absent judgments as nonrelevant. RankProbe defaults to preserving uncertainty. Select `--unjudged nonrelevant` only when that is your intended evaluation assumption; inspect excluded queries either way. Reading a TREC file does not select trec_eval's tie or averaging conventions. See the [synthetic retrieval walkthrough](../examples/trec/README.md).
 
 ## Comparing runs
 

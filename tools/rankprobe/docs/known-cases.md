@@ -2,6 +2,12 @@
 
 Sources checked on 2026-10-15. The examples in this repository are original miniature constructions, not benchmark data or copies of another project's reproduction code.
 
+## A retrieval export can appear better after losing a query
+
+The original [TREC-style example](../examples/trec/README.md) contains two runs with identical scores on their shared queries. One run drops a difficult query and reverses the file order of two equal-score documents. Under the default ascending-ID tie rule, its unrestricted MRR@2 rises from 0.25 to 0.5. On matching queries and candidate sets, both runs score 0.5; the apparent gain comes from coverage, not better scores.
+
+The same files contain an explicitly unjudged document and a query present only in qrels. The walkthrough shows how those affect metric eligibility and why a complete-qrels assertion is invalid here. This is an invented diagnostic example, not a new upstream bug, a dataset reproduction, or evidence of model improvement. All files can be shared under this repository's license.
+
 ## A known MTEB tie-order regression
 
 [MTEB issue #5092](https://github.com/embeddings-benchmark/mteb/issues/5092) documents a constant-score case in which metric paths used inconsistent tie handling. Maintainers confirmed the report, merged [PR #5136](https://github.com/embeddings-benchmark/mteb/pull/5136), and later discussed comparability of older results. The issue is closed. This is a known, addressed upstream problem, not a new vulnerability discovered by RankProbe.

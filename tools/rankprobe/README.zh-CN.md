@@ -11,7 +11,7 @@ cd rechorus-patt-reproduction/tools/rankprobe
 
 RankProbe 在本地读取候选分数及相关性标签，生成 HTML 和 JSON 报告，解释发现、影响范围与评测假设。无需重新训练模型、云账户或 API 密钥；核心只依赖 Python 标准库。
 
-[English](README.md) · [输入格式](docs/input-format.md) · [指标定义](docs/metrics.md) · [示例](examples/README.md) · [能力边界](docs/limitations.md)
+[English](README.md) · [输入格式](docs/input-format.md) · [指标定义](docs/metrics.md) · [五分钟试用](docs/try-it.md) · [能力边界](docs/limitations.md)
 
 ## 快速开始
 
@@ -66,6 +66,14 @@ python -m rankprobe audit examples/unjudged.csv --qrels examples/qrels.csv --qre
 
 候选池内的指标不等于全语料检索质量。完整性开关是使用者的声明，工具不能根据分数文件验证声明是否属实。
 
+现在也能直接读取检索实验常用的 TREC run 与 qrels，无需先转换成 CSV：
+
+```sh
+python -m rankprobe audit results.run --qrels judgments.qrels --out reports/retrieval
+```
+
+若文件扩展名是 `.txt`，需显式加入 `--input-format trec --qrels-format trec`。排序由 score 决定，文件中的 rank 不参与排序；qrels 的 `-1` 保持为未知，含此类条目时不能声明完整 qrels。[检索案例](examples/trec/README.md) 展示了一个可手算的陷阱：漏掉困难查询就能让平均 MRR 翻倍，共同查询上的结果却没有提升。案例是原创合成数据。
+
 ## 导出已有实验
 
 提供独立实现的 ReChorus 风格 NPZ 适配器，NumPy 仅为此可选工具所需：
@@ -82,7 +90,7 @@ RankProbe 不保证与任意框架输出相同。默认同分规则是物品 ID 
 
 ## 当前阶段
 
-这是早期 `0.1.0a1` 实现，已执行的检查见 [本地验证记录](docs/verification.md)，尚无外部采用、收入或论文成果的证据。下一步按 [试用计划](docs/validation-plan.md) 验证陌生用户能否独立使用并获得实际帮助。CI 配置覆盖多个 Python 版本及 Windows/Ubuntu，是否实际通过需查看对应提交的运行记录。
+这是早期 `0.1.0a2` 实现，已执行的检查见 [验证记录](docs/verification.md)，尚无外部采用、收入或论文成果的证据。下一步按 [试用计划](docs/validation-plan.md) 和 [路线图](docs/roadmap.md) 验证陌生用户能否独立使用并获得实际帮助，再决定扩展方向。CI 覆盖多个 Python 版本及 Windows/Ubuntu，是否实际通过需查看对应提交的运行记录。
 
 ```sh
 python -m pip install -e ".[dev,adapters]"

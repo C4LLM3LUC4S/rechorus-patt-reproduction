@@ -11,7 +11,7 @@ from typing import Sequence
 
 from . import __version__
 from .audit import audit_run, compare_runs
-from .io import read_predictions, read_qrels
+from .io import _input_format, read_predictions, read_qrels
 from .model import Protocol
 from .report import write_report
 
@@ -41,7 +41,13 @@ def _run(value: str) -> tuple[str, Path]:
 
 def _common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "--qrels", type=Path, help="CSV/JSONL judgments with query_id,item_id,relevance"
+        "--qrels", type=Path, help="CSV/JSONL judgments or four-column TREC qrels"
+    )
+    parser.add_argument(
+        "--qrels-format",
+        choices=("auto", "csv", "jsonl", "trec"),
+        default="auto",
+        help="judgment format; auto recognizes .csv/.jsonl/.qrels (use trec for .txt)",
     )
     parser.add_argument(
         "--qrels-complete",
@@ -110,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument(
         "predictions",
         type=Path,
-        help="CSV/JSONL with query_id,item_id,score and optional relevance",
+        help="CSV/JSONL scores or a six-column TREC .run/.trec file",
     )
     audit.add_argument("--name", default=None, help="display name (default: input file stem)")
     _common(audit)
@@ -125,6 +131,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME=FILE",
         help="repeat once per run; use distinct names",
     )
+    for command in (audit, compare):
+        command.add_argument(
+            "--input-format",
+            choices=("auto", "csv", "jsonl", "trec"),
+            default="auto",
+            help="prediction format (all runs in compare); auto recognizes .csv/.jsonl/.run/.trec",
+        )
     _common(compare)
     demo = commands.add_parser(
         "demo", help="generate a report from a small built-in example with deliberate pitfalls"
@@ -168,12 +181,20 @@ def _source(path: Path, role: str, run_name: str | None = None) -> dict:
     return result
 
 
-def _load_checked(path: Path, loader, role: str, run_name: str | None = None):
+def _load_checked(
+    path: Path, loader, role: str, run_name: str | None = None, *, format: str = "auto"
+):
     before = _source(path, role, run_name)
-    data = loader(path)
+    data = loader(path) if format == "auto" else loader(path, format=format)
     after = _source(path, role, run_name)
     if before["sha256"] != after["sha256"] or before["bytes"] != after["bytes"]:
         raise ValueError(f"{path.name}: input changed while being read; retry with a stable file")
+    after["input_format"] = _input_format(path, format, qrels=role == "qrels")
+    if after["input_format"] == "trec" and role == "predictions":
+        after["ordering_note"] = (
+            "TREC rank, iteration and run tag fields do not determine ranking. "
+            "Scores descend; the selected tie policy resolves equal scores."
+        )
     return data, after
 
 
@@ -183,13 +204,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         protocol = _protocol(arguments)
         qrels, sources = None, []
+        if arguments.qrels_format != "auto" and not arguments.qrels:
+            raise ValueError("--qrels-format requires --qrels FILE")
         if arguments.qrels:
-            qrels, source = _load_checked(arguments.qrels, read_qrels, "qrels")
+            qrels, source = _load_checked(
+                arguments.qrels, read_qrels, "qrels", format=arguments.qrels_format
+            )
             sources.append(source)
         if arguments.command == "audit":
             name = arguments.name or arguments.predictions.stem
             rows, source = _load_checked(
-                arguments.predictions, read_predictions, "predictions", name
+                arguments.predictions, read_predictions, "predictions", name,
+                format=arguments.input_format,
             )
             report = audit_run(rows, protocol, qrels=qrels, run_name=name)
             sources.append(source)
@@ -203,7 +229,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             runs = {}
             for name, path in arguments.run:
-                runs[name], source = _load_checked(path, read_predictions, "predictions", name)
+                runs[name], source = _load_checked(
+                    path, read_predictions, "predictions", name, format=arguments.input_format
+                )
                 sources.append(source)
             report = compare_runs(runs, protocol, qrels=qrels)
         else:
