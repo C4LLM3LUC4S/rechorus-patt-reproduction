@@ -1,0 +1,25 @@
+# Public context and independent examples
+
+Sources checked on 2026-10-15. The examples in this repository are original miniature constructions, not benchmark data or copies of another project's reproduction code.
+
+## A known MTEB tie-order regression
+
+[MTEB issue #5092](https://github.com/embeddings-benchmark/mteb/issues/5092) documents a constant-score case in which metric paths used inconsistent tie handling. Maintainers confirmed the report, merged [PR #5136](https://github.com/embeddings-benchmark/mteb/pull/5136), and later discussed comparability of older results. The issue is closed. This is a known, addressed upstream problem, not a new vulnerability discovered by RankProbe.
+
+Our `examples/ties.csv` illustrates the general order-dependence mechanism using invented IDs and scores. It does not reproduce the WebLINX benchmark or verify any current MTEB release. RankProbe's ascending-ID rule differs from `trec_eval`'s descending-ID rule; equal output is not promised.
+
+## Recommendation protocols are configurable
+
+The official [RecBole evaluation settings](https://recbole.io/docs/user_guide/config/evaluation_settings.html) describe full-item and sampled evaluation, including uniform and popularity-based negative sampling. Those are distinct declared protocols. RankProbe can compare the exported candidate pools; it cannot reconstruct an omitted corpus, infer the sampling distribution, or certify split construction from scores.
+
+RecBole already includes evaluation infrastructure. RankProbe's intended contribution is an independent, inspectable audit of exported evidence, not a claim that recomputing standard metrics is novel.
+
+## The local ReChorus motivation
+
+The existing [PAtt/ReChorus reproduction](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction) records its own fixed evaluation assumptions. It motivated a reusable interface that no longer assumes exactly 100 candidates or treats an item column as positive without an explicit adapter option. Existing code was inspected for context; the adapter is independently implemented.
+
+No private run matrices, original MovieLens data, or upstream implementation snippets are included here. ReChorus and PAtt remain separate projects under their own terms.
+
+## Naming and existing tools
+
+RankProbe is independent of the existing [RankAudit project](https://github.com/m-np/rankaudit). It does not claim that ranking diagnostics or metric recomputation are a new market. The distinct name avoids confusing the two tools.

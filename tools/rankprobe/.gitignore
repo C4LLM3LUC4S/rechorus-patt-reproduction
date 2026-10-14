@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+.tooling/
+*.egg-info/
+build/
+dist/
+artifacts/
+reports/
+local_export*
+*.npz
+*.npy
+.env
+.env.*

@@ -1,0 +1,7 @@
+query_id,item_id,score,relevance
+q1,z_positive,1,1
+q1,a_negative,1,0
+q1,b_negative,1,0
+q2,z_positive,0.5,1
+q2,a_negative,0.5,0
+q2,b_negative,0.5,0

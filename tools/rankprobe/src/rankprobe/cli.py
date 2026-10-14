@@ -1,0 +1,240 @@
+"""Command-line entry points for local ranking audits."""
+
+from __future__ import annotations
+
+import argparse
+from datetime import datetime, timezone
+import hashlib
+from pathlib import Path
+import sys
+from typing import Sequence
+
+from . import __version__
+from .audit import audit_run, compare_runs
+from .io import read_predictions, read_qrels
+from .model import Protocol
+from .report import write_report
+
+
+def _cutoffs(value: str) -> tuple[int, ...]:
+    try:
+        numbers = tuple(int(item.strip()) for item in value.split(","))
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "cutoffs must be comma-separated positive integers, for example 1,5,10"
+        ) from exc
+    if not numbers or any(item < 1 for item in numbers):
+        raise argparse.ArgumentTypeError("cutoffs must be positive integers")
+    return tuple(sorted(set(numbers)))
+
+
+def _run(value: str) -> tuple[str, Path]:
+    if "=" not in value:
+        raise argparse.ArgumentTypeError(
+            "use --run NAME=FILE, for example --run baseline=baseline.csv"
+        )
+    name, filename = value.split("=", 1)
+    if not name.strip() or not filename.strip():
+        raise argparse.ArgumentTypeError("--run needs both a nonempty name and a file path")
+    return name.strip(), Path(filename)
+
+
+def _common(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--qrels", type=Path, help="CSV/JSONL judgments with query_id,item_id,relevance"
+    )
+    parser.add_argument(
+        "--qrels-complete",
+        action="store_true",
+        help="assert supplied judgments cover the intended relevance universe (required for Recall)",
+    )
+    parser.add_argument(
+        "--unjudged",
+        choices=("unknown", "nonrelevant"),
+        default="unknown",
+        help="unknown keeps missing labels unknown; nonrelevant explicitly treats them as zero (default: unknown)",
+    )
+    parser.add_argument(
+        "--cutoffs",
+        type=_cutoffs,
+        default=(1, 5, 10),
+        metavar="K,K,...",
+        help="positive cutoffs (default: 1,5,10)",
+    )
+    parser.add_argument(
+        "--gain",
+        choices=("linear", "exp2"),
+        default="linear",
+        help="NDCG gain function (default: linear)",
+    )
+    parser.add_argument(
+        "--tie-policy",
+        choices=("item_id", "input"),
+        default="item_id",
+        help="break equal scores by item ID or original input order (default: item_id)",
+    )
+    parser.add_argument(
+        "--relevance-threshold",
+        type=float,
+        default=0.0,
+        help="binary relevance means label > threshold (default: 0)",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        required=True,
+        metavar="DIR",
+        help="write report.json and self-contained report.html here",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="replace only report.json/report.html if they exist; retain other files",
+    )
+    parser.add_argument(
+        "--fail-on",
+        choices=("error", "warning", "never"),
+        default="error",
+        help="exit 1 on findings at this severity or higher (default: error); invalid input always exits 2",
+    )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="rankprobe",
+        description="Inspect ranking evaluations for ties, duplicates, relevance coverage, and protocol differences. Runs locally; makes no network requests.",
+    )
+    parser.add_argument("--version", action="version", version=f"RankProbe {__version__}")
+    commands = parser.add_subparsers(dest="command", required=True)
+    audit = commands.add_parser("audit", help="audit one prediction file")
+    audit.add_argument(
+        "predictions",
+        type=Path,
+        help="CSV/JSONL with query_id,item_id,score and optional relevance",
+    )
+    audit.add_argument("--name", default=None, help="display name (default: input file stem)")
+    _common(audit)
+    compare = commands.add_parser(
+        "compare", help="audit multiple runs and check whether they are comparable"
+    )
+    compare.add_argument(
+        "--run",
+        type=_run,
+        action="append",
+        required=True,
+        metavar="NAME=FILE",
+        help="repeat once per run; use distinct names",
+    )
+    _common(compare)
+    demo = commands.add_parser(
+        "demo", help="generate a report from a small built-in example with deliberate pitfalls"
+    )
+    _common(demo)
+    return parser
+
+
+def _protocol(arguments: argparse.Namespace) -> Protocol:
+    return Protocol(
+        cutoffs=arguments.cutoffs,
+        tie_policy=arguments.tie_policy,
+        gain=arguments.gain,
+        relevance_threshold=arguments.relevance_threshold,
+        unjudged=arguments.unjudged,
+        qrels_complete=arguments.qrels_complete,
+    )
+
+
+def _finding_exit(report: dict, fail_on: str) -> int:
+    levels = {"error": 2, "warning": 1, "info": 0}
+    threshold = {"error": 2, "warning": 1, "never": 3}[fail_on]
+    return int(
+        any(
+            levels.get(str(finding.get("severity", "info")).lower(), 0) >= threshold
+            for finding in report.get("findings", [])
+        )
+    )
+
+
+def _source(path: Path, role: str, run_name: str | None = None) -> dict:
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+            size += len(chunk)
+    result = {"role": role, "filename": path.name, "sha256": digest.hexdigest(), "bytes": size}
+    if run_name is not None:
+        result["run_name"] = run_name
+    return result
+
+
+def _load_checked(path: Path, loader, role: str, run_name: str | None = None):
+    before = _source(path, role, run_name)
+    data = loader(path)
+    after = _source(path, role, run_name)
+    if before["sha256"] != after["sha256"] or before["bytes"] != after["bytes"]:
+        raise ValueError(f"{path.name}: input changed while being read; retry with a stable file")
+    return data, after
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
+    arguments = parser.parse_args(argv)
+    try:
+        protocol = _protocol(arguments)
+        qrels, sources = None, []
+        if arguments.qrels:
+            qrels, source = _load_checked(arguments.qrels, read_qrels, "qrels")
+            sources.append(source)
+        if arguments.command == "audit":
+            name = arguments.name or arguments.predictions.stem
+            rows, source = _load_checked(
+                arguments.predictions, read_predictions, "predictions", name
+            )
+            report = audit_run(rows, protocol, qrels=qrels, run_name=name)
+            sources.append(source)
+        elif arguments.command == "compare":
+            if len(arguments.run) < 2:
+                raise ValueError("compare needs at least two --run NAME=FILE arguments")
+            names = [name for name, _ in arguments.run]
+            if len(set(names)) != len(names):
+                raise ValueError(
+                    "run names must be unique; each --run NAME=FILE needs a different name"
+                )
+            runs = {}
+            for name, path in arguments.run:
+                runs[name], source = _load_checked(path, read_predictions, "predictions", name)
+                sources.append(source)
+            report = compare_runs(runs, protocol, qrels=qrels)
+        else:
+            from .demo import demo_rows
+
+            report = audit_run(demo_rows(), protocol, qrels=qrels, run_name="built-in-demo")
+            report["demo_note"] = (
+                "Synthetic demonstration with intentional ties, duplicate candidates and an unknown relevance label. It is not a model evaluation."
+            )
+        report["provenance"] = {
+            "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "rankprobe_version": __version__,
+            "command": arguments.command,
+            "sources": sources,
+            "source_path_policy": "Only filenames are stored; absolute local paths and raw command lines are omitted.",
+        }
+        json_path, html_path = write_report(report, arguments.out, overwrite=arguments.overwrite)
+    except (ValueError, OSError) as exc:
+        print(f"rankprobe: {exc}", file=sys.stderr)
+        return 2
+    counts = {
+        severity: sum(finding.get("severity") == severity for finding in report.get("findings", []))
+        for severity in ("error", "warning", "info")
+    }
+    print(
+        f"RankProbe: {counts['error']} errors, {counts['warning']} warnings, {counts['info']} informational findings"
+    )
+    print(f"HTML: {html_path.resolve()}")
+    print(f"JSON: {json_path.resolve()}")
+    return _finding_exit(report, arguments.fail_on)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

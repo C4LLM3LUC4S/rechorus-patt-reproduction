@@ -1,0 +1,58 @@
+# Metric semantics
+
+RankProbe exposes its evaluation choices so that a change in protocol is visible. It does not promise numerical parity with every framework. Check the JSON protocol and metric scope before quoting a value.
+
+## Ordering, relevance, and duplicate rows
+
+Higher scores rank first. The default tie policy, `item_id`, sorts tied item IDs in ascending string order. The optional `input` policy preserves their order in the input file. Neither policy means the model distinguished tied items. Other evaluators can use different rules; `trec_eval` uses descending document IDs in the historical case linked in [known-cases.md](known-cases.md).
+
+A relevance value greater than zero is relevant for MRR and Recall. NDCG uses graded relevance with the chosen gain function:
+
+- `linear`: `gain(r) = r`.
+- `exp2`: `gain(r) = 2**r - 1`.
+
+Duplicate `(query_id, item_id)` entries are diagnosed before unique-item evaluation. The declared policy keeps the maximum score for an item. Conflicting relevance is evidence of inconsistent judgments; a duplicate's score difference does not establish which row came from a valid pipeline. Raw-row versus unique-item comparisons are sensitivity diagnostics. Do not silently replace a benchmark's frozen primary procedure with deduplicated scores.
+
+## MRR@k
+
+For each query, reciprocal rank is `1 / rank` for the first relevant item within cutoff k and zero if none is found in that cutoff. MRR is the arithmetic mean across eligible queries; each query has equal weight.
+
+When unknown labels could alter the evaluated top-k result, the query is excluded under `unjudged=unknown`. Treating unknown candidates as nonrelevant is available only as an explicit protocol choice. The report includes eligible-query counts, so a mean computed on a small judged subset is not mistaken for full coverage.
+
+## NDCG@k
+
+`DCG@k = sum(gain(relevance_at_rank) / log2(rank + 1))` for ranks starting at one. NDCG divides DCG by the ideal DCG under the report's judgment scope. Queries with unknown candidate labels are not scored under the default unknown policy.
+
+The scope is part of the result:
+
+- **Candidate pool:** the ideal ordering uses known labels among supplied candidates. This measures ordering inside that pool and can hide missing relevant items.
+- **Known qrels pool:** independent judgments can include items not retrieved. The ideal ordering uses that declared judgment pool. Incomplete qrels still do not establish full-corpus relevance.
+
+When ideal DCG is zero, the query contributes zero by this implementation's declared convention. No relevant judged item is different from an unjudged query. Inspect coverage and warnings before interpreting either.
+
+## Recall@k
+
+Recall uses the number of distinct relevant items retrieved in the top k divided by the number of relevant items in the independent qrels. It is reported only when `--qrels-complete` explicitly declares a complete denominator for the evaluated queries. That flag is not a measured fact.
+
+Counting only positives present in a truncated prediction file can make Recall artificially equal to one. RankProbe does not rename that quantity full Recall. Queries missing from the independent judgments remain unresolved. Queries with a known zero relevant denominator are excluded from Recall; inspect the eligible-query count.
+
+## Query coverage
+
+Macro averages use query IDs actually present in the submitted predictions.
+When qrels contain additional queries, the report lists their count and examples
+and marks metrics as partial. Those queries are not silently scored as zero:
+the judgment file might intentionally cover a larger dataset. Confirm the
+intended query universe before quoting the aggregate. Two runs omitting the
+same queries can match each other while both have incomplete qrels coverage.
+
+## Ties and sensitivity bounds
+
+The audit keeps strict score ordering fixed and examines the effect of permuting candidates within exact-score tie groups. It reports metric minima and maxima for the supported metrics under those constraints. Graded relevance is respected for NDCG.
+
+These bounds describe order sensitivity of this input and protocol. They are not confidence intervals, significance tests, or possible training outcomes. They are per-metric envelopes: the order giving the best value for one metric does not imply a common optimal order for every reported metric. Unknown judgments and coverage rules still apply.
+
+Exact ties mean equal parsed numeric values. Near-ties caused by score rounding, quantization, or serialization need separate analysis; this version does not infer a tolerance from the data.
+
+## What a comparison establishes
+
+Comparisons inspect query coverage, unique candidate sets, and known judgments. A metric difference over different query or candidate pools mixes multiple causes. Even when those files agree, experiment version, training history, tokenization, split construction, and tuning remain manual checks. Read [limitations.md](limitations.md) before using a report in a paper or release.
