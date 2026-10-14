@@ -7,6 +7,7 @@
 - Input formats and score-based TREC ordering are recorded with source hashes.
 - Corrected `judged_candidates` to count known labels; `resolved_candidates` separately includes explicit assumptions.
 - A hand-checkable retrieval case exposes score changes caused by omitted queries, plus a short independent-use guide.
+- Report destinations cannot replace an input file, including explicitly formatted inputs named `report.json` or `report.html` and existing file aliases.
 
 The format reader does not imply metric parity with `trec_eval`; tie rules, unknown handling, and the macro query universe remain explicit.
 

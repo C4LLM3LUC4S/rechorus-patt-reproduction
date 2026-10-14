@@ -2,13 +2,21 @@
 
 ## Retrieval alpha (`0.1.0a2`, 2026-10-15)
 
-The updated local suite passed **151 tests and 10 subtests** on Windows / Python 3.12.5; Ruff passed. These include TREC format errors, preserved identifiers and file order, explicit format overrides, unknown-only qrels, inline-label resolution, rejected contradictory completeness assertions, cross-run coverage, and source provenance.
+The updated local suite passed **155 tests and 10 subtests** on Windows / Python 3.12.5; Ruff passed. One symbolic-link-loop test was skipped because this Windows session lacks symlink creation privileges. These include TREC format errors, preserved identifiers and file order, explicit format overrides, unknown-only qrels, inline-label resolution, rejected contradictory completeness assertions, cross-run coverage, source provenance, and input/output collisions.
 
 An independent reviewer ran 67 relevant tests and 10 subtests, plus four end-to-end probes covering misleading file extensions, unknown-only and absent queries, completeness combined with an explicit zero assumption, and cross-run label disagreement. No reproducible functional error was found. The review corrected documentation that had implied CSV/JSONL unknown qrels were accepted and clarified the conservative MRR exclusion rule.
 
 Seven documented retrieval flows were exercised. Hand calculations agreed within `1e-12`: default MRR@2 is 0.25 versus 0.5, but both matched-pool values are 0.5; default NDCG@2 is approximately 0.315464876786 versus 0.630929753571, with equal matched-pool values. Input-order ties and the explicit nonrelevant assumption matched their documented results. These are invented cases, not public benchmark findings. All 41 local links checked across 16 Markdown documents were valid at that check.
 
 A fresh virtual environment installed the built `0.1.0a2` wheel with `--no-deps`. Isolated `python -I -m rankprobe compare` on the retrieval example produced both reports, and the installed console entry point reported the correct version. Distribution checks verified wheel CRCs, version, absence of core runtime dependencies, exact packaged Python source bytes, and source-package examples/documentation/tests. The first packaging check exposed missing `.run`/`.qrels` fixtures; the manifest was corrected and rebuilt. The check is now a CI step.
+
+Further review reproduced an input-protection defect introduced by format overrides: a JSONL input named `report.json` could be replaced by `--out` pointing to the same directory with `--overwrite`. The CLI now rejects output paths coinciding with any prediction or judgment input, including existing file aliases. Four regression tests cover audit, compare, demo judgments, and a hard-link alias.
+
+### Public upstream input check
+
+Unmodified test inputs from [`usnistgov/trec_eval` at commit ba38899cbd4de0fb699b47f39b64ef1c107e4a5c](https://github.com/usnistgov/trec_eval/tree/ba38899cbd4de0fb699b47f39b64ef1c107e4a5c/test) were downloaded only for local validation. `results.test` (SHA256 `69019319f6cb9ce861b4ad08d90898170d3d2b27da580fb3cba59e557ff2fd20`) and `qrels.test` (SHA256 `6c44a070a10bfb14b123cadc597227fc63c1acec109bc6d1e5a6bc4763906698`) loaded successfully: 1,500 predictions, three submitted queries and 3,681 judgments. The audit found 762 retrieved candidates absent from the judgments and real score ties. It did not invent labels to make NDCG or Recall available under the default protocol. A separate single-query run and run comparison also completed; qrels-only queries remained visible.
+
+The upstream `results.trunc` file contains extra trailing fields and was explicitly rejected by the documented exact-six-column contract. This is a known input-compatibility limit. The upstream expected output and Makefile were inspected, but the `trec_eval` executable was not run and numerical parity was not established. Upstream inputs and notices remain outside version control; no third-party fixture redistribution permission is inferred from the software license. This checks public test-file integration, not an external user's adoption or a benchmark study.
 
 The previous `0.1.0a1` remote commit `07ce7e586f857da124e32b4f402514fbee3c41e0` passed the six Windows/Ubuntu and Python 3.10/3.12/3.13 jobs in [run 38605754159](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/actions/runs/38605754159). That result does not cover these new changes; inspect the updated PR commit's runs for current remote validation.
 

@@ -198,10 +198,34 @@ def _load_checked(
     return data, after
 
 
+def _protect_inputs(paths: list[Path], output: Path) -> None:
+    destinations = [output / filename for filename in ("report.json", "report.html")]
+    for source in paths:
+        for destination in destinations:
+            try:
+                same_path = source.resolve() == destination.resolve()
+            except RuntimeError as exc:
+                # Python 3.10-3.12 use RuntimeError for symbolic-link loops.
+                raise ValueError(f"cannot resolve input or output path: {exc}") from exc
+            same_file = (
+                source.exists() and destination.exists() and source.samefile(destination)
+            )
+            if same_path or same_file:
+                raise ValueError(
+                    f"output report would replace input {source.name!r}; choose another --out directory"
+                )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     arguments = parser.parse_args(argv)
     try:
+        inputs = [arguments.qrels] if arguments.qrels else []
+        if arguments.command == "audit":
+            inputs.append(arguments.predictions)
+        elif arguments.command == "compare":
+            inputs.extend(path for _, path in arguments.run)
+        _protect_inputs(inputs, arguments.out)
         protocol = _protocol(arguments)
         qrels, sources = None, []
         if arguments.qrels_format != "auto" and not arguments.qrels:

@@ -30,6 +30,8 @@ python -m rankprobe compare --run baseline=examples/trec/baseline.run --run reor
 
 Cutoffs are sorted and deduplicated. The declared protocol is saved in JSON. Absolute input paths and raw command lines are not stored as provenance; source filenames and hashes are recorded. Identifiers in the findings still require a privacy review before sharing.
 
+The output report pair must not coincide with any prediction or judgment input, including an existing file alias. Such a destination is rejected even with `--overwrite`; choose a separate report directory.
+
 In an audit summary, `judged_candidates` counts unique candidates with an actual known judgment after label resolution. `resolved_candidates` also includes unknowns assigned zero under `--unjudged nonrelevant`. Their difference reflects an assumption, not newly collected judgments.
 
 Auto detection accepts `.csv`, `.jsonl`, prediction `.run` / `.trec`, and judgment `.qrels`. For `.txt` files, declare the format explicitly:
