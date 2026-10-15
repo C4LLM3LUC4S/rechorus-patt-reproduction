@@ -57,4 +57,4 @@ This changes q3's unknown doc_x into zero under an explicit assumption. All thre
 
 Do not pass `--qrels-complete` with these qrels. The explicit `-1` contradicts that assertion and is rejected, even if `--unjudged nonrelevant` is also selected. Recall therefore remains unverified in the normal walkthrough.
 
-Use a new output directory for each command. To rerun into the same directory, add `--overwrite`; unrelated files are retained. The expected warnings do not fail the default `--fail-on error` invocation. See [the input contract](../../docs/input-format.md) for `.txt` files and [the five-minute guide](../../docs/try-it.md) for trying your own export.
+Use a new output directory for each command. To rerun into the same directory, add `--overwrite`; unrelated files are retained. The expected warnings do not fail the default `--fail-on error` invocation. See [the input contract](../../docs/input-format.md) for `.txt` files and [the first-use guide](../../docs/try-it.md) for trying your own export.

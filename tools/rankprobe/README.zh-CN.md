@@ -1,6 +1,10 @@
 # RankProbe
 
-首个 alpha 暂放在现有复现仓库的独立目录与分支，可这样获取：
+首个 alpha 暂放在现有复现仓库的独立目录与分支。没有 Git 时，可[下载源码 ZIP](https://codeload.github.com/C4LLM3LUC4S/rechorus-patt-reproduction/zip/refs/heads/feature/rankprobe-alpha)，解压，在解压后的仓库文件夹打开终端，再运行 `cd tools/rankprobe`。
+
+Windows 建议选择较短的解压路径；如果创建环境时 pip/ensurepip 提示路径过长，请换一个较短的文件夹重新开始。
+
+也可以用 Git 获取：
 
 ```sh
 git clone --branch feature/rankprobe-alpha https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction.git
@@ -11,7 +15,7 @@ cd rechorus-patt-reproduction/tools/rankprobe
 
 RankProbe 在本地读取候选分数及相关性标签，生成 HTML 和 JSON 报告，解释发现、影响范围与评测假设。无需重新训练模型、云账户或 API 密钥；核心只依赖 Python 标准库。
 
-[English](README.md) · [输入格式](docs/input-format.md) · [指标定义](docs/metrics.md) · [五分钟试用](docs/try-it.md) · [能力边界](docs/limitations.md)
+[English](README.md) · [输入格式](docs/input-format.md) · [指标定义](docs/metrics.md) · [首次本地报告](docs/try-it.md) · [能力边界](docs/limitations.md)
 
 使用 BEIR 时，可按 [导出与评估接入指南](docs/beir-workflow.md) 保留检索原始快照，明确同名 ID 过滤和候选截断策略，并仅转移已有 qrels 标签。
 
@@ -23,12 +27,25 @@ RankProbe 在本地读取候选分数及相关性标签，生成 HTML 和 JSON �
 
 需要 Python 3.10 或以上版本。目前从本地源码安装，尚未声称已发布到 PyPI。
 
-```sh
-python -m pip install -e .
-python -m rankprobe demo --out reports/demo
+在这个包的文件夹中创建独立环境，直接使用它的解释器，无需激活。
+
+Windows PowerShell：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install .
+.\.venv\Scripts\python.exe -m rankprobe demo --out reports/demo
 ```
 
-用浏览器打开生成的 `report.html`。也可以直接尝试有预期结果的合成案例：
+macOS / Linux：
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install .
+.venv/bin/python -m rankprobe demo --out reports/demo
+```
+
+用浏览器离线打开 `reports/demo/report.html`。[完整试用步骤](docs/try-it.md) 包含有预期数值的比较，以及已有框架环境与本环境的衔接。下文的 `python` 都指同一环境的解释器：Windows 使用 `.\.venv\Scripts\python.exe`，macOS / Linux 使用 `.venv/bin/python`。也可以尝试合成案例：
 
 ```sh
 python -m rankprobe audit examples/ties.csv --cutoffs 1,5 --out reports/ties
@@ -88,11 +105,11 @@ python -m rankprobe audit results.run --qrels judgments.qrels --out reports/retr
 
 ```sh
 python -m pip install -e ".[adapters]"
-python scripts/export_rechorus.py local_test_predictions.npz --out local_export.csv --positive-index 0 --other-candidates nonrelevant --limit-queries 100
+python scripts/export_rechorus.py local_test_predictions.npz --out local_export.csv --positive-index 0 --limit-queries 100
 python -m rankprobe audit local_export.csv --out reports/local-export
 ```
 
-每个矩阵行单独成为一个查询；用户标识不导出，物品标识被替换。导出假设、隐私边界与跨文件对齐限制见 [适配器说明](docs/adapters.md)。公开示例均为原创合成数据，不分发私人预测、MovieLens 数据或第三方代码。
+此例只声明指定列为正例，其他标签保持未知；仅在核验过的评测协议确有依据时，另加 `--other-candidates nonrelevant`。每个矩阵行单独成为一个查询；`user_id` 数组不导出，物品标识被替换。依赖模型的捕获步骤应使用你原有框架的解释器，导出文件后再用上面的核心环境审计。导出假设、隐私边界与跨文件对齐限制见 [适配器说明](docs/adapters.md)。公开示例均为原创合成数据，不分发私人预测、MovieLens 数据或第三方代码。
 
 RankProbe 不保证与任意框架输出相同。默认同分规则是物品 ID 字符串升序，与 `trec_eval` 的规则不同。已有公共问题只用作背景，不声称发现了新漏洞或替代上游修复，见 [案例来源](docs/known-cases.md)。新增的 [trec_eval 独立交叉验证](docs/trec-reference.md) 提供可复现检查：共同协议下核对数值，协议不同时保留并解释差异，不能为了对齐结果而随意补零或宣称标签完整。
 

@@ -5,7 +5,7 @@ RankProbe aims to help people explain why exported ranking results change. The n
 | Milestone | Deliverable | Evidence needed before expanding |
 | --- | --- | --- |
 | Retrieval alpha (`0.1.0a2`) | Read TREC runs and qrels directly; preserve explicit unknown labels; demonstrate a misleading aggregate improvement | Reproducible fixtures, hand calculations, CLI regression checks, and cross-platform CI for the exact commit |
-| Independent use | A five-minute trial, useful report explanations, and a small feedback record | Three people outside the implementation team try their own exports; at least two identify actionable information and choose a second use |
+| Independent use | A complete local walkthrough, useful report explanations, and a small feedback record | Three people outside the implementation team try their own exports; at least two identify actionable information and choose a second use |
 | Integration | Address the export or interpretation bottleneck observed in those trials | A concrete repeated request, a maintained adapter or CI recipe, and a regression example that shows the time or decision saved |
 | Reproducibility study | Measure how declared evaluation choices affect run comparisons on permitted public inputs | A fixed protocol, source and license record, independent reference calculations, and reproducible results beyond synthetic examples |
 

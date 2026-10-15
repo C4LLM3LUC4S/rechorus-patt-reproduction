@@ -44,7 +44,7 @@ Auto detection accepts `.csv`, `.jsonl`, prediction `.run` / `.trec`, and judgme
 python -m rankprobe audit results.txt --input-format trec --qrels labels.txt --qrels-format trec --out reports/trec-text
 ```
 
-TREC rank columns are validated but sorting uses scores and the selected tie rule. Explicit `-1` judgments remain unknown unless the protocol explicitly assumes unjudged items nonrelevant. Do not add `--qrels-complete` to a partially judged file. See [input-format.md](input-format.md) for the full contract and [try-it.md](try-it.md) for a five-minute walkthrough.
+TREC rank columns are validated but sorting uses scores and the selected tie rule. Explicit `-1` judgments remain unknown unless the protocol explicitly assumes unjudged items nonrelevant. Do not add `--qrels-complete` to a partially judged file. See [input-format.md](input-format.md) for the full contract and [try-it.md](try-it.md) for a complete first-use walkthrough.
 
 ## Exit codes and automation
 
