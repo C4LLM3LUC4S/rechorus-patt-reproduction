@@ -23,6 +23,7 @@ from rankprobe.model import Protocol, Row
 
 
 ABSOLUTE_TOLERANCE = 0.00005000001
+EXP2_ANALYTIC_ABSOLUTE_TOLERANCE = 1e-14
 CUTOFFS = (1, 2, 5, 10)
 GENERATOR_SEED = 20261015
 
@@ -189,6 +190,125 @@ def _check_shared(case: Case, executable: Path, root: Path) -> tuple[int, float]
     return count, largest_error
 
 
+def _exp2_case() -> Case:
+    return Case(
+        "exp2-graded",
+        [Row("q1", "low", 4), Row("q1", "high", 2),
+         Row("q2", "medium", 9), Row("q2", "zero", 5)],
+        {"q1": {"low": 1, "high": 3, "unretrieved_medium": 2, "zero": 0},
+         "q2": {"medium": 2, "zero": 0, "unretrieved_high": 3, "low": 1}},
+    )
+
+
+def _prepare_exp2(case: Case) -> tuple[Case, dict[tuple[str, str], float]]:
+    original_rows = list(case.rows)
+    original_qrels = {query: dict(labels) for query, labels in case.qrels.items()}
+    queries = sorted(case.qrels)
+    require(set(queries) == {"q1", "q2"} == {row.query_id for row in case.rows},
+            "exp2: query sets differ from the two-query fixture")
+    for query, labels in case.qrels.items():
+        rows = [row for row in case.rows if row.query_id == query]
+        require(len({row.item_id for row in rows}) == len(rows),
+                "exp2: repeated candidate")
+        require(all(math.isfinite(row.score) for row in rows)
+                and len({row.score for row in rows}) == len(rows),
+                "exp2: scores must be finite and distinct")
+        require(all(row.item_id in labels and row.relevance is None for row in rows),
+                "exp2: every candidate needs an explicit qrels judgment without inline labels")
+        require(all(type(grade) is int and 0 <= grade <= 3 for grade in labels.values())
+                and any(grade > 0 for grade in labels.values()),
+                "exp2: judgments must be integers from 0 to 3 with a positive per query")
+    gains = {0: 0, 1: 1, 2: 3, 3: 7}
+    reference_case = Case(
+        case.name + "-reference", list(case.rows),
+        {query: {item: gains[grade] for item, grade in labels.items()}
+         for query, labels in case.qrels.items()},
+    )
+    protocol = Protocol(cutoffs=CUTOFFS, gain="exp2", qrels_complete=True)
+    evaluated = {"all": evaluate_metrics(case.rows, protocol, case.qrels)}
+    for query in queries:
+        evaluated[query] = evaluate_metrics(
+            [row for row in case.rows if row.query_id == query],
+            protocol, {query: case.qrels[query]},
+        )
+    expected = {}
+    for query, metrics in evaluated.items():
+        for cutoff in CUTOFFS:
+            observed = metrics[f"ndcg@{cutoff}"]
+            require(observed["status"] == "ok" and observed["value"] is not None,
+                    "exp2: RankProbe NDCG is unavailable or partial")
+            expected[f"ndcg_cut_{cutoff}", query] = observed["value"]
+    for query, analytic in (("q1", 1 / 7), ("q2", 3 / 7), ("all", 2 / 7)):
+        require(math.isclose(expected["ndcg_cut_1", query], analytic, rel_tol=0,
+                             abs_tol=EXP2_ANALYTIC_ABSOLUTE_TOLERANCE),
+                f"exp2 analytic {query}: rational control differs")
+    linear = evaluate_metrics(
+        case.rows, Protocol(cutoffs=(1,), gain="linear", qrels_complete=True), case.qrels,
+    )["ndcg@1"]
+    require(math.isclose(linear["value"], 0.5, rel_tol=0,
+                         abs_tol=EXP2_ANALYTIC_ABSOLUTE_TOLERANCE),
+            "exp2 linear control: rational control differs")
+    require(case.rows == original_rows and case.qrels == original_qrels,
+            "exp2: original inputs changed during preparation")
+    return reference_case, expected
+
+
+def _write_exp2_inputs(case: Case, reference_case: Case, root: Path) -> dict[str, Path]:
+    original_qrels, predictions = _write_case(case, root)
+    reference_qrels = original_qrels.with_name("gain-transformed.qrels")
+    reference_qrels.write_text("".join(
+        f"{query} 0 {item} {grade}\n"
+        for query, judgments in sorted(reference_case.qrels.items())
+        for item, grade in sorted(judgments.items())
+    ), encoding="utf-8", newline="\n")
+    return {"original_qrels": original_qrels, "predictions_run": predictions,
+            "reference_gain_qrels": reference_qrels}
+
+
+def _check_exp2(executable: Path, root: Path) -> dict:
+    case = _exp2_case()
+    original_rows = list(case.rows)
+    original_qrels = {query: dict(labels) for query, labels in case.qrels.items()}
+    reference_case, expected = _prepare_exp2(case)
+    files = _write_exp2_inputs(case, reference_case, root)
+    hashes_before = {role: hashlib.sha256(path.read_bytes()).hexdigest()
+                     for role, path in files.items()}
+    paths = files["reference_gain_qrels"], files["predictions_run"]
+    arguments = ["-q", "-m", "ndcg_cut." + ",".join(str(cutoff) for cutoff in CUTOFFS),
+                 *(str(path) for path in paths)]
+    result = _run(executable, arguments, root)
+    hashes_after = {role: hashlib.sha256(path.read_bytes()).hexdigest()
+                    for role, path in files.items()}
+    require(hashes_after == hashes_before, "exp2: synthetic input files changed during reference check")
+    require(result.returncode == 0, f"exp2 reference: subprocess exited {result.returncode}")
+    reference = parse_output(result.stdout)
+    expected_keys = {(f"ndcg_cut_{cutoff}", query)
+                     for cutoff in CUTOFFS for query in ("q1", "q2", "all")}
+    require(set(reference) == expected_keys == set(expected) and len(reference) == 12,
+            "exp2: reference metric/query keys differ from the 12 expected values")
+    largest_error = max(
+        _close(expected[key], reference[key], f"exp2 {key[1]} {key[0]}")
+        for key in expected_keys
+    )
+    for query, analytic in (("q1", 1 / 7), ("q2", 3 / 7), ("all", 2 / 7)):
+        _close(reference["ndcg_cut_1", query], analytic, f"exp2 reference analytic {query}")
+    require(case.rows == original_rows and case.qrels == original_qrels,
+            "exp2: original inputs changed during reference check")
+    return {
+        "case": case.name, "queries": 2, "cutoffs": list(CUTOFFS), "comparisons": 12,
+        "maximum_absolute_error": largest_error, "absolute_tolerance": ABSOLUTE_TOLERANCE,
+        "gain": "exp2", "original_grades": [0, 1, 2, 3], "reference_gains": [0, 1, 3, 7],
+        "analytic_ndcg_at_1": {"q1": 1 / 7, "q2": 3 / 7, "all": 2 / 7},
+        "analytic_absolute_tolerance": EXP2_ANALYTIC_ABSOLUTE_TOLERANCE,
+        "linear_macro_ndcg_at_1_control": 0.5,
+        "original_in_memory_inputs_unchanged": True,
+        "input_file_integrity": {"sha256_before": hashes_before, "sha256_after": hashes_after,
+                                 "unchanged": True},
+        "qrels": "original fully judged synthetic universes; only reference qrels transformed",
+        "scope": "Bounded small-integer exp2 NDCG; excludes fractional/extreme grades and ties",
+    }
+
+
 def _check_boundaries(executable: Path, root: Path) -> dict:
     one = Protocol(cutoffs=(1,), qrels_complete=True)
     tie = Case("boundary-ties", [Row("q1", "a", 1), Row("q1", "z", 1)],
@@ -268,6 +388,7 @@ def check_reference(executable: str | Path) -> dict:
             count += comparisons
             largest_error = max(largest_error, error)
         boundaries = _check_boundaries(executable, root)
+        exp2 = _check_exp2(executable, root)
     require(hashlib.sha256(executable.read_bytes()).hexdigest() == binary_hash,
             "reference: executable changed during check")
     return {
@@ -280,6 +401,7 @@ def check_reference(executable: str | Path) -> dict:
                             "gain": "linear", "relevance_threshold": 0,
                             "qrels": "original fully judged synthetic universes"},
         "asserted_boundaries": boundaries,
+        "exp2_ndcg": exp2,
         "scope": "Synthetic protocol cross-check; no claim of universal parity or user time saved",
     }
 
