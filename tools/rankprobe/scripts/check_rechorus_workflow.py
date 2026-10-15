@@ -9,6 +9,7 @@ Sequential models, CTR and list-wise reranking are outside this check's scope.
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 import csv
 import hashlib
 import importlib
@@ -116,6 +117,39 @@ def _load_full_sort_exporter():
     return module.export_full_sort
 
 
+def _model_arguments(GeneralModel, torch, *, test_all: int, num_neg: int):
+    parser = GeneralModel.parse_model_args(argparse.ArgumentParser())
+    arguments = parser.parse_args([])
+    require(arguments.buffer == 1 and arguments.test_all == 0,
+            "upstream model parser: expected default buffer=1 and test_all=0")
+    arguments.device = torch.device("cpu")
+    arguments.model_path = "unused-synthetic.pt"
+    arguments.test_all, arguments.num_neg = test_all, num_neg
+    return arguments
+
+
+def _cache_snapshot(dataset, np) -> dict:
+    require(isinstance(dataset.buffer_dict, dict)
+            and set(dataset.buffer_dict) == set(range(len(dataset))),
+            "upstream prepared cache: expected one native cached feed per context")
+    return {index: {field: np.asarray(value).copy() for field, value in feed.items()}
+            for index, feed in dataset.buffer_dict.items()}
+
+
+def _cache_unchanged(dataset, snapshot: dict, np) -> bool:
+    if set(dataset.buffer_dict) != set(snapshot):
+        return False
+    for index, expected in snapshot.items():
+        actual = dataset.buffer_dict[index]
+        if set(actual) != set(expected):
+            return False
+        for field, value in expected.items():
+            actual_value = np.asarray(actual[field])
+            if actual_value.dtype != value.dtype or not np.array_equal(actual_value, value):
+                return False
+    return True
+
+
 def _fixtures(np, pd, torch, BaseRunner, GeneralModel):
     # Each row is an independent prediction context, despite the repeated user.
     corpus = SimpleNamespace(
@@ -126,10 +160,7 @@ def _fixtures(np, pd, torch, BaseRunner, GeneralModel):
                           np.array([*range(1, 101), 101])],
         })},
     )
-    model_args = SimpleNamespace(
-        device=torch.device("cpu"), model_path="unused-synthetic.pt", buffer=0,
-        num_neg=101, dropout=0, test_all=False,
-    )
+    model_args = _model_arguments(GeneralModel, torch, test_all=0, num_neg=101)
 
     class Model(GeneralModel):
         def __init__(self):
@@ -225,10 +256,7 @@ def _check_full_sort_workflow(out: Path, np, torch, BaseRunner, GeneralModel, ex
             "full-sort reader: actual context time sorting differs")
     train_clicked_snapshot = {user: set(items) for user, items in corpus.train_clicked_set.items()}
     residual_clicked_snapshot = {user: set(items) for user, items in corpus.residual_clicked_set.items()}
-    model_args = SimpleNamespace(
-        device=torch.device("cpu"), model_path="unused-full-sort.pt", buffer=0,
-        num_neg=1, dropout=0, test_all=1,
-    )
+    model_args = _model_arguments(GeneralModel, torch, test_all=1, num_neg=1)
 
     class Model(GeneralModel):
         def __init__(self):
@@ -245,6 +273,7 @@ def _check_full_sort_workflow(out: Path, np, torch, BaseRunner, GeneralModel, ex
     original_training, original_test_all = model.training, model.test_all
     dataset = GeneralModel.Dataset(model, corpus, "test")
     dataset.prepare()
+    cached_feeds = _cache_snapshot(dataset, np)
     parser = BaseRunner.parse_runner_args(argparse.ArgumentParser())
     args = parser.parse_args([])
     args.train, args.log_file = 0, "synthetic-full-sort.log"
@@ -391,7 +420,8 @@ def _check_full_sort_workflow(out: Path, np, torch, BaseRunner, GeneralModel, ex
                 "full-sort barrier: original synthetic input CSVs changed")
         require(corpus.train_clicked_set == train_clicked_snapshot
                 and corpus.residual_clicked_set == residual_clicked_snapshot
-                and query_ids == query_ids_snapshot,
+                and query_ids == query_ids_snapshot
+                and _cache_unchanged(dataset, cached_feeds, np),
                 "full-sort workflow: clicked sets or caller-declared event IDs changed")
         observations = {
             "scope": "pinned native GeneralModel.Dataset full-sort mask-aware export",
@@ -413,6 +443,8 @@ def _check_full_sort_workflow(out: Path, np, torch, BaseRunner, GeneralModel, ex
             "safe_export_mrr_at_1": 1.0,
             "safe_export_ndcg_at_1": None, "safe_export_recall_at_1": None,
             "official_test_all_argument": model_args.test_all,
+            "official_default_buffer": model_args.buffer,
+            "prepared_native_cached_feed_rows": len(cached_feeds),
         }
     finally:
         model.test_all = original_test_all
@@ -420,6 +452,138 @@ def _check_full_sort_workflow(out: Path, np, torch, BaseRunner, GeneralModel, ex
     require(model.test_all == original_test_all and model.training == original_training
             and torch.equal(model.score_table, model_before),
             "full-sort barrier: fresh fixture model state was not restored")
+    return observations
+
+
+def _check_stale_prepared_cache(out: Path, np, torch, BaseRunner, GeneralModel) -> dict:
+    """Observe caller mutation of a prepared sampled protocol, then reject it."""
+    input_root = out / "stale-cache-inputs"
+    input_directory = input_root / "synthetic"
+    input_root.mkdir(exist_ok=False)
+    input_directory.mkdir(exist_ok=False)
+    records = {
+        "train": [(7, 1, 1)],
+        "dev": [(7, 4, 2), (8, 6, 2)],
+        "test": [(7, 5, 4, "[6,2,1,4,3]"), (7, 3, 3, "[6,2,1,4,5]")],
+    }
+    source_paths = []
+    for split, rows in records.items():
+        path = input_directory / f"{split}.csv"
+        with path.open("x", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle, lineterminator="\n")
+            writer.writerow(("user_id", "item_id", "time", "neg_items")
+                            if split == "test" else ("user_id", "item_id", "time"))
+            writer.writerows(rows)
+        source_paths.append(path)
+    input_hashes = {path.name: digest(path) for path in source_paths}
+    BaseReader = sys.modules["helpers.BaseReader"].BaseReader
+    corpus = BaseReader(SimpleNamespace(path=str(input_root), dataset="synthetic", sep=","))
+    args = _model_arguments(GeneralModel, torch, test_all=0, num_neg=5)
+
+    class Model(GeneralModel):
+        def __init__(self):
+            super().__init__(args, corpus)
+            self.register_buffer("score_table", torch.tensor(
+                [0, 9, .5, .9, .8, .75, .25], dtype=torch.float64,
+            ))
+
+        def forward(self, feed_dict):
+            return {"prediction": self.score_table[feed_dict["item_id"]].clone()}
+
+    model = Model()
+    original_training, original_test_all, original_buffer = model.training, model.test_all, model.buffer
+    score_table_before = model.score_table.clone()
+    dataset = GeneralModel.Dataset(model, corpus, "test")
+    dataset.prepare()
+    cached_feeds = _cache_snapshot(dataset, np)
+    original_cache = deepcopy(dataset.buffer_dict)
+    original_data = deepcopy(dataset.data)
+    train_clicked = deepcopy(corpus.train_clicked_set)
+    residual_clicked = deepcopy(corpus.residual_clicked_set)
+    parser = BaseRunner.parse_runner_args(argparse.ArgumentParser())
+    runner_args = parser.parse_args([])
+    runner_args.train, runner_args.log_file = 0, "synthetic-stale-cache.log"
+    runner_args.eval_batch_size, runner_args.num_workers, runner_args.pin_memory = 1, 0, 0
+    runner = BaseRunner(runner_args)
+    export_full_sort = _load_full_sort_exporter()
+    try:
+        cached_candidates = np.stack([dataset[index]["item_id"] for index in range(len(dataset))])
+        require(np.array_equal(cached_candidates, [
+            [3, 6, 2, 1, 4, 5], [5, 6, 2, 1, 4, 3],
+        ]), "stale cache: original sampled feed candidates differ")
+        require(original_buffer == 1 and original_test_all == 0,
+                "stale cache: fixture did not use official parser defaults")
+        # This deliberately mutates the protocol after native prepare(). A new
+        # Dataset or another prepare() is needed before using the new protocol.
+        model.test_all = 1
+        require(np.array_equal(np.stack([dataset[index]["item_id"]
+                                        for index in range(len(dataset))]), cached_candidates)
+                and len(dataset._get_feed_dict(0)["item_id"]) == corpus.n_items,
+                "stale cache: cached sampled feeds did not differ from fresh full-sort feeds")
+        predictions = runner.predict(dataset)
+        prediction_snapshot = predictions.copy()
+        expected = np.array([
+            [.9, -np.inf, .5, -np.inf, -np.inf, -np.inf],
+            [.75, -np.inf, .5, -np.inf, -np.inf, -np.inf],
+        ])
+        require(predictions.shape == (2, 6) and corpus.n_items == 7
+                and np.array_equal(predictions, expected),
+                "stale cache: actual runner did not use cached sampled columns with changed mask protocol")
+        require(np.all(cached_candidates[:, 1] == 6)
+                and np.isfinite(score_table_before[6].item())
+                and np.isneginf(predictions[:, 1]).all(),
+                "stale cache: cached item six was not masked by the changed column-one assumption")
+        archive = out / "stale-cache-predictions.npz"
+        with archive.open("xb") as handle:
+            np.savez(handle, scores=predictions, item_id=cached_candidates,
+                     user_id=np.array(dataset.data["user_id"]))
+        archive_hash = digest(archive)
+        rejected = out / "rejected-stale-cache-export"
+        try:
+            export_full_sort(predictions, dataset, ["event-0003", "event-0005"], rejected)
+        except ValueError as exc:
+            require("shape" in str(exc), "stale cache: unexpected exporter rejection reason")
+        else:
+            raise GateError("stale cache: incompatible cached sampled scores were accepted as full-sort")
+        require(not rejected.exists(), "stale cache: exporter created output before rejection")
+        require(digest(archive) == archive_hash
+                and np.array_equal(predictions, prediction_snapshot)
+                and _cache_unchanged(dataset, cached_feeds, np)
+                and torch.equal(model.score_table, score_table_before),
+                "stale cache: prediction source, cached fields or model scores changed")
+        require(all(np.array_equal(np.asarray(dataset.data[field]), np.asarray(values))
+                    for field, values in original_data.items())
+                and corpus.train_clicked_set == train_clicked
+                and corpus.residual_clicked_set == residual_clicked,
+                "stale cache: original dataset rows or clicked sets changed")
+        observations = {
+            "scope": "deliberate caller protocol mutation after native prepare; not a normal default failure",
+            "official_default_buffer": args.buffer,
+            "prepared_test_all": original_test_all, "changed_test_all": 1,
+            "cached_candidate_ids": cached_candidates.tolist(),
+            "actual_prediction_shape": list(predictions.shape),
+            "required_full_sort_columns": int(corpus.n_items),
+            "finite_item_six_at_cached_column_one_was_masked": True,
+            "export_status": "shape rejected before output directory creation",
+            "source_npz_sha256": archive_hash, "synthetic_source_csv_sha256": input_hashes,
+        }
+    finally:
+        model.test_all, model.buffer = original_test_all, original_buffer
+        model.train(original_training)
+        with torch.no_grad():
+            model.score_table.copy_(score_table_before)
+        dataset.data, dataset.buffer_dict = deepcopy(original_data), deepcopy(original_cache)
+    require(model.test_all == original_test_all and model.buffer == original_buffer
+            and model.training == original_training
+            and torch.equal(model.score_table, score_table_before)
+            and _cache_unchanged(dataset, cached_feeds, np),
+            "stale cache: fresh model flags, score table or cache were not restored")
+    require({path.name: digest(path) for path in source_paths} == input_hashes,
+            "stale cache: original synthetic CSVs changed")
+    try:
+        json.dumps(observations, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise GateError("stale cache: observations must be finite JSON values") from exc
     return observations
 
 
@@ -445,6 +609,7 @@ def check_workflow(out: Path, source: Path) -> dict:
     export_npz = _load_exporter()
 
     corpus, model, dataset, runner = _fixtures(np, pd, torch, BaseRunner, GeneralModel)
+    cached_feeds = _cache_snapshot(dataset, np)
     candidates_before = np.stack([dataset[index]["item_id"] for index in range(len(dataset))])
     users_before = np.array(dataset.data["user_id"], copy=True)
     targets_before = np.array(dataset.data["item_id"], copy=True)
@@ -521,10 +686,13 @@ def check_workflow(out: Path, source: Path) -> dict:
     full_sort_workflow = _check_full_sort_workflow(
         out, np, torch, BaseRunner, GeneralModel, export_npz,
     )
+    stale_cache = _check_stale_prepared_cache(out, np, torch, BaseRunner, GeneralModel)
     inputs = (archive, exported_csv, metadata_path, out / "unsupported-full-sort.npz",
               out / "full-sort-export" / "predictions.csv",
               out / "full-sort-export" / "exclusions.json",
-              *sorted((out / "full-sort-inputs" / "synthetic").glob("*.csv")))
+              *sorted((out / "full-sort-inputs" / "synthetic").glob("*.csv")),
+              out / "stale-cache-predictions.npz",
+              *sorted((out / "stale-cache-inputs" / "synthetic").glob("*.csv")))
     hashes_before = {str(path.relative_to(out)): digest(path) for path in inputs}
     report = run_audit(out, exported_csv)
     require(report["report_type"] == "audit", "audit: wrong report type")
@@ -561,6 +729,8 @@ def check_workflow(out: Path, source: Path) -> dict:
             "integration: original dataset contexts or candidates changed")
     require(corpus.data_df["test"]["user_id"].tolist() == [7, 7],
             "integration: original corpus user rows changed")
+    require(model.buffer == 1 and _cache_unchanged(dataset, cached_feeds, np),
+            "integration: official default buffered sampled feeds changed")
     require({name: digest(source / "src" / (name.replace(".", "/") + ".py"))
              for name in source_hashes} == source_hashes,
             "integration: pinned upstream source files changed")
@@ -574,6 +744,9 @@ def check_workflow(out: Path, source: Path) -> dict:
             "candidates_per_context": 102, "exported_rows": 204,
             "unknown_candidates": 202, "declared_positive_column": 0,
             "full_sort_workflow": full_sort_workflow,
+            "official_default_buffer": model.buffer,
+            "prepared_sampled_cached_feed_rows": len(cached_feeds),
+            "stale_prepared_cache": stale_cache,
             "explicit_synthetic_tie_oracle": {
                 "upstream_hr_at_1": float(upstream_tie["HR@1"]),
                 "upstream_ndcg_at_1": float(upstream_tie["NDCG@1"]),
@@ -608,6 +781,11 @@ def check_workflow(out: Path, source: Path) -> dict:
             "full_sort_known_mask_exclusions_have_overlapping_reasons": True,
             "full_sort_eligible_nonfinite_scores_rejected_without_output": True,
             "full_sort_actual_cli_preserves_unknown_labels_and_positive_rows": True,
+            "actual_upstream_default_buffer_one_prepare_path_exercised": True,
+            "sampled_and_full_sort_native_cached_feed_rows_preserved": True,
+            "actual_stale_cache_after_test_all_protocol_change_observed": True,
+            "stale_cache_full_sort_export_rejected_before_output": True,
+            "stale_cache_inputs_and_fresh_model_state_restored": True,
         },
         "limitations": [
             "Original synthetic fixtures only; no benchmark data was loaded or used.",
@@ -617,6 +795,7 @@ def check_workflow(out: Path, source: Path) -> dict:
             "The separate tie oracle supplies explicit synthetic zeros; the default exported run preserves unknown labels.",
             "Full-sort export covers only the pinned native GeneralModel.Dataset layout and declared event row alignment; arbitrary overridden full-sort models are unsupported.",
             "Residual clicked sets include validation/test interactions; this is an upstream candidate policy, not causal history or a leakage certificate.",
+            "The stale-cache counterexample deliberately changes test_all after prepare without rebuilding; it is a mutable caller workflow risk, not evidence that the normal default is broken.",
             "No sequential, CTR, reranking, universal metric parity, adoption or human time saved is established.",
         ],
     }

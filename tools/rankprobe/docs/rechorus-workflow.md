@@ -29,6 +29,12 @@ with Path("sampled-scores.npz").open("xb") as handle:
 
 This does not sort or truncate the matrix. Use only a prepared evaluation dataset whose candidate construction is deterministic across these two reads. For a custom dataset that resamples candidates, capture IDs in the same inference batch instead; this snippet cannot prove alignment for such a subclass. NPZ is the bridge convention, not a native upstream export feature.
 
+### Set the mode and records before preparing the dataset
+
+The pinned base model defaults to `buffer=1`. Dataset `prepare()` caches evaluation feed rows, and later `__getitem__` returns those rows without rebuilding them. Changing `model.test_all` or reordering/replacing `dataset.data` afterward does not automatically refresh the cached candidate identities. The runner can then interpret old sampled candidates under a new full-sort mode. This is a mutable-workflow risk, not a demonstrated defect in the normal default path.
+
+Fix the evaluation mode and source records before constructing/preparing the dataset. If you change them, create a fresh dataset and call `prepare()` for that configuration, then obtain new predictions and event IDs from those same rows. Do not reuse old scores with a newly prepared dataset. The full-sort exporter checks the native shape/columns and fails before output when the cached sampled layout does not match; those checks cannot detect every same-shaped semantic mismatch.
+
 Then, from the RankProbe source checkout in an environment with `.[adapters]` installed:
 
 ```sh
@@ -103,7 +109,7 @@ With the verified source checkout and CPU helper dependencies used by CI:
 python scripts/check_rechorus_workflow.py --source path/to/ReChorus --out rechorus-workflow-example
 ```
 
-The check uses normally imported official `BaseRunner` and `GeneralModel.Dataset` on original synthetic data. It exercises prepared dataset rows, collation, model scoring and the actual runner prediction loop, then captures NPZ and calls the existing RankProbe exporter and installed CLI. A separate native evaluator probe asserts the expected tie difference. The full-sort workflow adds actual `BaseReader` construction from tiny generated CSVs, raw NPZ rejection, mask-aware safe export and a separate installed-CLI report. It does not train a model, use the bundled benchmark data, or validate all upstream model families.
+The check uses normally imported official `BaseRunner` and `GeneralModel.Dataset` on original synthetic data. It exercises prepared dataset rows, collation, model scoring and the actual runner prediction loop, then captures NPZ and calls the existing RankProbe exporter and installed CLI. A separate native evaluator probe asserts the expected tie difference. The full-sort workflow adds actual `BaseReader` construction from tiny generated CSVs, raw NPZ rejection, mask-aware safe export and a separate installed-CLI report. The default-buffer path verifies cached feeds remain unchanged, and a separate mode-switch probe checks rejection of stale sampled candidates. It does not train a model, use the bundled benchmark data, or validate all upstream model families.
 
 CI verifies source archive SHA256 `0e66340a9d496ca6277ded4f6f0b51f92bf739eba4f26a14d1e8a26cb0c75cd1`, extracts only the source subtree and checks the runner/model source bytes before execution. The upstream archive contains bundled dataset files, but those are not extracted, loaded or used by this job. The checker never imports `main.py` and does not execute its presentation exporter; the CSV limitation above is established from the fixed source.
 
