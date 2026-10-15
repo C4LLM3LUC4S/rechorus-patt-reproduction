@@ -1,13 +1,15 @@
 """Check an actual sampled one-positive ReChorus prediction/export workflow.
 
 Original synthetic fixtures exercise the pinned upstream Dataset and Runner.
-No benchmark data is loaded, and no model is trained. Full-sort/test_all,
-sequential models, CTR and list-wise reranking are outside this check's scope.
+No benchmark data is loaded, and no model is trained. A separate full-sort
+reader/runner probe verifies why its raw output remains unsupported for export.
+Sequential models, CTR and list-wise reranking are outside this check's scope.
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import importlib
 import importlib.metadata as metadata
@@ -175,6 +177,140 @@ def run_audit(out: Path, predictions: Path) -> dict:
         raise GateError("RankProbe CLI: JSON missing or invalid") from exc
 
 
+def _check_full_sort_barrier(out: Path, np, torch, BaseRunner, GeneralModel, export_npz) -> dict:
+    """Observe full-sort semantics without claiming an export adapter exists."""
+    input_root = out / "full-sort-inputs"
+    input_directory = input_root / "synthetic"
+    input_root.mkdir(exist_ok=False)
+    input_directory.mkdir(exist_ok=False)
+    source_records = {
+        "train": [(7, 1, 1)],
+        "dev": [(7, 4, 2), (8, 6, 2)],
+        # Deliberately reversed: the actual reader sorts these contexts by time.
+        "test": [(7, 5, 4), (7, 3, 3)],
+    }
+    source_paths = []
+    for split, records in source_records.items():
+        path = input_directory / f"{split}.csv"
+        with path.open("x", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle, lineterminator="\n")
+            writer.writerow(("user_id", "item_id", "time"))
+            writer.writerows(records)
+        source_paths.append(path)
+    input_hashes = {path.name: digest(path) for path in source_paths}
+    # BaseReader was normally imported and its origin/hash verified together
+    # with BaseModel. Only the three new original synthetic CSVs are read.
+    BaseReader = sys.modules["helpers.BaseReader"].BaseReader
+    corpus = BaseReader(SimpleNamespace(path=str(input_root), dataset="synthetic", sep=","))
+    require(corpus.n_items == 7 and corpus.n_users == 9,
+            "full-sort reader: synthetic catalog dimensions differ")
+    require(corpus.train_clicked_set[7] == {1}
+            and corpus.residual_clicked_set[7] == {3, 4, 5},
+            "full-sort reader: train/residual clicked sets differ")
+    require(corpus.data_df["test"]["item_id"].tolist() == [3, 5],
+            "full-sort reader: actual context time sorting differs")
+    model_args = SimpleNamespace(
+        device=torch.device("cpu"), model_path="unused-full-sort.pt", buffer=0,
+        num_neg=1, dropout=0, test_all=True,
+    )
+
+    class Model(GeneralModel):
+        def __init__(self):
+            super().__init__(model_args, corpus)
+            self.register_buffer("score_table", torch.tensor(
+                [0, 9, .5, .9, .8, .75, .25], dtype=torch.float64,
+            ))
+
+        def forward(self, feed_dict):
+            return {"prediction": self.score_table[feed_dict["item_id"]].clone()}
+
+    model = Model()
+    model_before = model.score_table.clone()
+    original_training, original_test_all = model.training, model.test_all
+    dataset = GeneralModel.Dataset(model, corpus, "test")
+    dataset.prepare()
+    parser = BaseRunner.parse_runner_args(argparse.ArgumentParser())
+    args = parser.parse_args([])
+    args.train, args.log_file = 0, "synthetic-full-sort.log"
+    args.eval_batch_size, args.num_workers, args.pin_memory = 1, 0, 0
+    runner = BaseRunner(args)
+    try:
+        candidate_matrix = np.stack([dataset[index]["item_id"] for index in range(len(dataset))])
+        candidate_snapshot = candidate_matrix.copy()
+        targets = np.array(dataset.data["item_id"], copy=True)
+        users = np.array(dataset.data["user_id"], copy=True)
+        require(np.array_equal(candidate_matrix, [
+            [3, 1, 2, 3, 4, 5, 6], [5, 1, 2, 3, 4, 5, 6],
+        ]), "full-sort Dataset: positive/catalog column layout differs")
+        predictions = runner.predict(dataset)
+        prediction_snapshot = predictions.copy()
+        expected_mask = np.zeros((2, 7), dtype=bool)
+        expected_mask[:, [1, 3, 4, 5]] = True
+        require(predictions.shape == (2, 7)
+                and np.array_equal(np.isneginf(predictions), expected_mask),
+                "full-sort prediction: train/residual catalog masking differs")
+        require(np.array_equal(candidate_matrix[:, 0], targets)
+                and np.all(candidate_matrix[:, 0] > 0)
+                and np.isfinite(predictions[:, 0]).all(),
+                "full-sort prediction: column zero must retain the observed positive, not padding")
+        require(np.isfinite(predictions[~expected_mask]).all()
+                and np.array_equal(predictions[~expected_mask],
+                                   model_before.numpy()[candidate_matrix][~expected_mask]),
+                "full-sort prediction: original eligible scores changed")
+        require(all(candidate_matrix[index, int(target)] == target
+                    and np.isneginf(predictions[index, int(target)])
+                    for index, target in enumerate(targets)),
+                "full-sort prediction: catalog duplicate of the current target was not masked")
+        native = BaseRunner.evaluate_method(predictions, [1], ["HR", "NDCG"])
+        require(native["HR@1"] == 1.0 and native["NDCG@1"] == 1.0,
+                "full-sort evaluation: masked target duplicate changed native positive rank")
+
+        archive = out / "unsupported-full-sort.npz"
+        with archive.open("xb") as handle:
+            np.savez(handle, scores=predictions, item_id=candidate_matrix, user_id=users)
+        archive_hash = digest(archive)
+        destination = out / "rejected-full-sort.csv"
+        try:
+            export_npz(archive, destination, positive_index=0, other_candidates="unknown")
+        except ValueError as exc:
+            require("finite" in str(exc), "full-sort export: unexpected rejection reason")
+        else:
+            raise GateError("full-sort export: unsupported raw masked matrix unexpectedly accepted")
+        require(not destination.exists() and not destination.with_suffix(".csv.metadata.json").exists(),
+                "full-sort export: rejected input created export output")
+        require(digest(archive) == archive_hash
+                and np.array_equal(predictions, prediction_snapshot)
+                and np.array_equal(candidate_matrix, candidate_snapshot)
+                and torch.equal(model.score_table, model_before),
+                "full-sort barrier: source scores, candidates or model changed")
+        require(np.array_equal(np.stack([dataset[index]["item_id"]
+                                        for index in range(len(dataset))]), candidate_snapshot)
+                and np.array_equal(dataset.data["user_id"], users)
+                and np.array_equal(dataset.data["item_id"], targets),
+                "full-sort barrier: original context rows or candidates changed")
+        require({path.name: digest(path) for path in source_paths} == input_hashes,
+                "full-sort barrier: original synthetic input CSVs changed")
+        observations = {
+            "scope": "actual upstream full-sort barrier; no full-sort export adapter",
+            "prediction_contexts": 2, "candidates_per_context": 7,
+            "column_zero_role": "observed positive target, not padding",
+            "positive_first_columns_retained": 2, "masked_catalog_positions": 8,
+            "masked_current_target_catalog_duplicates": 2,
+            "train_clicked_items": [1], "residual_clicked_items": [3, 4, 5],
+            "residual_source_splits": ["dev", "test"],
+            "native_hr_at_1": float(native["HR@1"]),
+            "raw_npz_export_status": "rejected before CSV or metadata creation",
+            "raw_npz_sha256": archive_hash, "synthetic_source_csv_sha256": input_hashes,
+        }
+    finally:
+        model.test_all = original_test_all
+        model.train(original_training)
+    require(model.test_all == original_test_all and model.training == original_training
+            and torch.equal(model.score_table, model_before),
+            "full-sort barrier: fresh fixture model state was not restored")
+    return observations
+
+
 def check_workflow(out: Path, source: Path) -> dict:
     out = new_output_directory(out)
     source, source_hashes = validated_source(source)
@@ -270,8 +406,12 @@ def check_workflow(out: Path, source: Path) -> dict:
             and rankprobe_tie["mrr@1"]["value"] == 1.0,
             "tie boundary: RankProbe lexical positive rank differs")
 
-    inputs = (archive, exported_csv, metadata_path)
-    hashes_before = {path.name: digest(path) for path in inputs}
+    full_sort_barrier = _check_full_sort_barrier(
+        out, np, torch, BaseRunner, GeneralModel, export_npz,
+    )
+    inputs = (archive, exported_csv, metadata_path, out / "unsupported-full-sort.npz",
+              *sorted((out / "full-sort-inputs" / "synthetic").glob("*.csv")))
+    hashes_before = {str(path.relative_to(out)): digest(path) for path in inputs}
     report = run_audit(out, exported_csv)
     require(report["report_type"] == "audit", "audit: wrong report type")
     require(report["protocol"]["unjudged"] == "unknown"
@@ -294,7 +434,7 @@ def check_workflow(out: Path, source: Path) -> dict:
     require(len(sources) == 1 and sources[0]["filename"] == exported_csv.name
             and sources[0]["sha256"] == hashes_before[exported_csv.name],
             "audit: input provenance hash differs")
-    require({path.name: digest(path) for path in inputs} == hashes_before
+    require({str(path.relative_to(out)): digest(path) for path in inputs} == hashes_before
             and digest(archive) == archive_hash, "integration: synthetic source files changed")
     require(np.array_equal(predictions, predictions_before)
             and torch.equal(model.score_table, model_before),
@@ -307,6 +447,9 @@ def check_workflow(out: Path, source: Path) -> dict:
             "integration: original dataset contexts or candidates changed")
     require(corpus.data_df["test"]["user_id"].tolist() == [7, 7],
             "integration: original corpus user rows changed")
+    require({name: digest(source / "src" / (name.replace(".", "/") + ".py"))
+             for name in source_hashes} == source_hashes,
+            "integration: pinned upstream source files changed")
 
     result = {
         "status": "passed", "python": platform.python_version(), "platform": sys.platform,
@@ -316,6 +459,7 @@ def check_workflow(out: Path, source: Path) -> dict:
             "prediction_contexts": 2, "distinct_source_users": 1,
             "candidates_per_context": 102, "exported_rows": 204,
             "unknown_candidates": 202, "declared_positive_column": 0,
+            "full_sort_barrier": full_sort_barrier,
             "explicit_synthetic_tie_oracle": {
                 "upstream_hr_at_1": float(upstream_tie["HR@1"]),
                 "upstream_ndcg_at_1": float(upstream_tie["NDCG@1"]),
@@ -340,14 +484,21 @@ def check_workflow(out: Path, source: Path) -> dict:
             "explicit_synthetic_tie_policy_difference_observed": True,
             "actual_rankprobe_cli_report": True,
             "source_hashes_and_inputs_unchanged": True,
+            "actual_full_sort_reader_dataset_and_runner_called": True,
+            "full_sort_clicked_catalog_and_own_target_duplicate_masks_observed": True,
+            "full_sort_column_zero_is_positive_not_recbole_padding": True,
+            "unsupported_raw_full_sort_export_rejected_without_output": True,
+            "full_sort_synthetic_inputs_and_fresh_model_state_preserved": True,
         },
         "limitations": [
-            "Original synthetic sampled one-positive fixtures only; no benchmark data was loaded or used.",
+            "Original synthetic fixtures only; no benchmark data was loaded or used.",
             "Actual GeneralModel Dataset and BaseRunner are used; no trained recommendation model is evaluated.",
             "Positive column zero is a checked fixture convention and a caller assertion for other inputs.",
             "Query IDs represent matrix rows; item pseudonyms are local to this export, not portable cross-run identities.",
             "The separate tie oracle supplies explicit synthetic zeros; the default exported run preserves unknown labels.",
-            "No full-sort, sequential, CTR, reranking, universal metric parity, adoption or human time saved is established.",
+            "The separate actual full-sort reader/runner probe only verifies a rejection barrier; full-sort export remains unsupported.",
+            "Residual clicked sets include validation/test interactions; this is an upstream candidate policy, not causal history or a leakage certificate.",
+            "No sequential, CTR, reranking, universal metric parity, adoption or human time saved is established.",
         ],
     }
     with (out / "summary.json").open("x", encoding="utf-8", newline="\n") as handle:

@@ -54,6 +54,14 @@ Then use `--identity source` with that NPZ. This mode requires unique string eve
 
 This first recipe excludes `test_all=True`. That path has different catalog/history masking and can repeat the observed target in its candidate universe. The RecBole mask helper uses different dataset contracts and cannot be applied to it by renaming objects.
 
+### Why full-sort needs a separate contract
+
+In this source's `GeneralModel.Dataset`, full-sort columns are `[observed_target, 1, ..., n_items-1]`. Column zero is the target, **not padding**. Its catalog copy appears again at the column equal to its item ID. `BaseRunner.predict` masks catalog columns listed in `train_clicked_set | residual_clicked_set`, leaving the special target column untouched. The inspected [`BaseReader`](https://github.com/THUwangcy/ReChorus/blob/c164ec4303cc20ddcfbd1b57de366a481811d1e5/src/helpers/BaseReader.py) constructs residual clicks from both dev and test interactions, without filtering by the individual event's time. The target's catalog duplicate and other held-out items can therefore be masked too.
+
+These are source-specific evaluation choices; they do not establish a leakage defect or a causal history policy. A portable export would need separate reasons for training clicks, residual dev/test clicks and the target duplicate, and preserve the finite target at column zero. The current NPZ exporter rejects the raw nonfinite matrix. Do not apply a RecBole-style "remove padding column zero" rule: that would remove the observed positive while its catalog duplicate is already masked.
+
+The integration checker includes a bounded rejection probe using an actual `BaseReader` over original tiny synthetic CSVs, then the actual dataset and runner. It verifies the masks and finite target before asserting that raw NPZ export fails without writing a CSV. This probe establishes the input obstacle; it does not add supported full-sort export or certify the evaluation protocol.
+
 ## Interpret expected tie differences
 
 ReChorus's inspected [`evaluate_method`](https://github.com/THUwangcy/ReChorus/blob/c164ec4303cc20ddcfbd1b57de366a481811d1e5/src/helpers/BaseRunner.py#L52) ranks the observed positive by counting scores greater than **or equal to** its score. A negative with the same score therefore pushes the positive down. RankProbe defaults to ascending item-token order within exact ties. The same scores can produce different NDCG without either evaluator having an arithmetic defect.
@@ -68,7 +76,7 @@ With the verified source checkout and CPU helper dependencies used by CI:
 python scripts/check_rechorus_workflow.py --source path/to/ReChorus --out rechorus-workflow-example
 ```
 
-The check uses normally imported official `BaseRunner` and `GeneralModel.Dataset` on original synthetic data. It exercises prepared dataset rows, collation, model scoring and the actual runner prediction loop, then captures NPZ and calls the existing RankProbe exporter and installed CLI. A separate native evaluator probe asserts the expected tie difference. It does not train a model, use the bundled benchmark data, or validate all upstream model families.
+The check uses normally imported official `BaseRunner` and `GeneralModel.Dataset` on original synthetic data. It exercises prepared dataset rows, collation, model scoring and the actual runner prediction loop, then captures NPZ and calls the existing RankProbe exporter and installed CLI. A separate native evaluator probe asserts the expected tie difference. The full-sort rejection probe adds actual `BaseReader` construction from tiny generated CSVs. It does not train a model, use the bundled benchmark data, or validate all upstream model families.
 
 CI verifies source archive SHA256 `0e66340a9d496ca6277ded4f6f0b51f92bf739eba4f26a14d1e8a26cb0c75cd1`, extracts only the source subtree and checks the runner/model source bytes before execution. The upstream archive contains bundled dataset files, but those are not extracted, loaded or used by this job. The checker never imports `main.py` and does not execute its presentation exporter; the CSV limitation above is established from the fixed source.
 
