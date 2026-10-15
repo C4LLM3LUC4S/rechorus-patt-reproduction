@@ -99,6 +99,10 @@ python -m pip install -e ".[dev,adapters]"
 python -m pytest
 python -m ruff check .
 python -m build
+python scripts/check_distribution.py
+python scripts/check_wheel_install.py --wheel dist/rankprobe-0.1.0a3-py3-none-any.whl
 ```
+
+CI 同时检查源码与构建出的 wheel：在干净环境中独立安装后，运行模块入口、实际命令行入口和检索比较，见 [安装验证说明](docs/installation-checks.md)。是否通过以对应提交的运行记录为准。
 
 欢迎用最小合成输入报告问题。许可证见 [LICENSE](LICENSE)，软件引用信息见 [CITATION.cff](CITATION.cff)。第三方数据与输出继续受其来源条款约束。

@@ -1,5 +1,13 @@
 # Verification record
 
+## Built-wheel installation gate (unchanged `0.1.0a3` runtime)
+
+Review of the previous workflow found a specific evidence gap: its demo ran after an editable development install, so it exercised the checkout rather than an independently installed wheel. The workflow now invokes the standard-library `scripts/check_wheel_install.py` after building and checking the distributions. Runtime code and metric definitions were not changed for this improvement.
+
+On Windows / Python 3.12.5, the checker created an independent environment outside the checkout in a path containing spaces, installed the explicit local wheel without dependencies or an index, verified its module/distribution versions and local wheel hash, and ran the real Windows console launcher plus isolated module entry point. Demo and copied TREC comparison reports matched their known values, unknown-label exclusions and input hashes. Only RankProbe was added beyond the environment's bootstrap packages. Original wheel and fixture hashes remained unchanged.
+
+Four focused integration probes then verified the gate itself: a wheel missing its console entry point failed at the launcher stage; a wheel declaring an unexpected core dependency failed before installation; an existing summary file was refused without changing its bytes; and a parent environment with synthetic source-path and index overrides still produced a correctly isolated installation. The malformed wheels stayed in ignored local artifacts. No old unit suite was rerun locally because its runtime code was unchanged. Ruff passed for the new checker. Cross-platform evidence must come from this commit's workflow, which now runs the same installation gate in each matrix job.
+
 ## Comparison report alpha (`0.1.0a3`, 2026-10-15)
 
 The local Windows / Python 3.12.5 suite passed **170 tests and 12 subtests**, with one symbolic-link-loop test skipped because Windows symlink privileges are unavailable. Ruff passed. The CLI integration check was updated to the new comparison headings.

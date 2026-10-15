@@ -51,6 +51,6 @@ jobs:
       - name: Check distribution integrity and example coverage
         working-directory: ${{ steps.package.outputs.root }}
         run: python scripts/check_distribution.py
-      - name: Exercise command line
+      - name: Install and exercise built wheel in isolation
         working-directory: ${{ steps.package.outputs.root }}
-        run: python -m rankprobe demo --out reports/ci-demo
+        run: python scripts/check_wheel_install.py --wheel dist/*.whl
