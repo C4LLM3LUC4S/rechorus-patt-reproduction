@@ -78,6 +78,8 @@ The positions are `query_id iteration item_id relevance`; iteration is not used.
 
 Blank lines and lines whose first non-whitespace character is `#` are ignored in these text files. Inline comments, extra columns, embedded whitespace in IDs, NUL characters, and malformed records are rejected. This exact-column contract is stricter than trec_eval's acceptance of trailing run fields.
 
+For a known run with expendable trailing fields, the source checkout includes an [explicit normalization helper](trec-normalization.md). It validates a new six-field copy and preserves the original; regular import remains strict.
+
 ```sh
 python -m rankprobe audit baseline.run --qrels judgments.qrels --out reports/retrieval
 python -m rankprobe audit results.txt --input-format trec --qrels labels.txt --qrels-format trec --out reports/text-input

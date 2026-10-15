@@ -1,5 +1,11 @@
 # Verification record
 
+## Explicit trailing-field conversion (unchanged `0.1.0a3` core)
+
+The previous real-input check stopped at a documented compatibility boundary: NIST's `test/results.trunc` has legal trailing run fields which the strict RankProbe loader rejects. The upstream format specification and quicktest confirmed that this is intended input. A new explicit source-checkout helper validates a separate six-field copy before creating the destination, refuses existing outputs/source aliases, and reports original/output hashes. It does not relax core parsing or add judgments. See [the case and commands](trec-normalization.md).
+
+On Windows / Python 3.12.5, 53 targeted normalization and TREC-loader tests passed; Ruff passed for both new files. An independent read-only review found no blocking issue. The actual upstream case converted 584 records, removed trailing fields on five records, and agreed with an independently constructed first-six-fields reference on all rows and their order. Original bytes remained unchanged. One separate CLI conversion took 0.228 seconds including interpreter startup; no human time-saving baseline was measured. The full-versus-truncated report identified missing query 302 and a differing candidate pool for query 303, preserving unknown judgments. Source inputs and generated reports remain ignored local artifacts; only original code, synthetic tests and aggregate evidence are distributed. CI results must be checked for this exact commit.
+
 ## Built-wheel installation gate (unchanged `0.1.0a3` runtime)
 
 Review of the previous workflow found a specific evidence gap: its demo ran after an editable development install, so it exercised the checkout rather than an independently installed wheel. The workflow now invokes the standard-library `scripts/check_wheel_install.py` after building and checking the distributions. Runtime code and metric definitions were not changed for this improvement.
