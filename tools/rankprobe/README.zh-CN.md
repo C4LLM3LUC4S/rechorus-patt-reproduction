@@ -15,6 +15,8 @@ RankProbe 在本地读取候选分数及相关性标签，生成 HTML 和 JSON �
 
 使用 BEIR 时，可按 [导出与评估接入指南](docs/beir-workflow.md) 保留检索原始快照，明确同名 ID 过滤和候选截断策略，并仅转移已有 qrels 标签。
 
+使用 RecBole 非序列 full-sort 时，可按 [安全导出指南](docs/recbole-workflow.md) 记录 padding/history 排除原因，保留外部 ID，并拒绝有效候选上的异常分数；未观察到的交互仍保持未知。
+
 ## 快速开始
 
 需要 Python 3.10 或以上版本。目前从本地源码安装，尚未声称已发布到 PyPI。

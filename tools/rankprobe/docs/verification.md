@@ -1,5 +1,11 @@
 # Verification record
 
+## RecBole masked-score workflow (unchanged `0.1.0a3` core)
+
+Pinned official RecBole helper source confirms that padding and nonsequential history scores are set to `-inf`, which cannot be imported as finite predictions. A new NumPy-only source helper uses the exact evaluation object's mappings/history to export eligible scores and explicit exclusion reasons. Unexpected nonfinite eligible scores and incompatible context/identity shapes fail; no judgments are inferred. The [recipe](recbole-workflow.md) gives the supported scope and separate-label workflow.
+
+The optional checker normally imports the actual installed RecBole helpers and `Interaction`, executes original synthetic protocol fixtures, demonstrates over-requested top-k masked entries, and checks the installed RankProbe CLI against an independently written eligible-score file. This is helper/export integration, not a trained model, production dataloader, native evaluator parity, or adoption experiment. The separate CI job verifies the source archive and installed helper bytes before execution; current-head job results are the acceptance evidence.
+
 ## BEIR export/evaluation workflow (unchanged `0.1.0a3` core)
 
 Read-only inspection of pinned BEIR source identified three concrete integration concerns: evaluation's default same-ID filter mutates the supplied results, run export defaults to 1000 candidates, and native qrels TSV has a different schema. The new [recipe](beir-workflow.md) uses the existing BEIR exporter and RankProbe TREC interface. Its optional checker imports the actual BEIR helper/evaluator, exports original synthetic results, transfers only existing judgments, invokes the installed RankProbe CLI, and checks report coverage and source hashes. It does not download a model/dataset or assert general BEIR numerical parity.

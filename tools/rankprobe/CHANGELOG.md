@@ -8,6 +8,7 @@
 - Added an explicit source-checkout TREC normalization helper for runs with expendable trailing fields, with validation before creating a new file and source/output hashes. Strict core imports and all judgment policies remain unchanged.
 - Added a pinned trec_eval reference job and an executable checker for shared-protocol MRR/NDCG/Recall, with separate probes documenting expected judgment, tie and averaging differences. Core metric definitions remain unchanged.
 - Added a BEIR export/evaluation recipe and optional actual-module integration check covering in-place same-ID filtering, default export truncation, qrels transfer, unknown labels and matched-pool reports. No framework or model dependency was added to the core.
+- Added a NumPy-only source helper for nonsequential RecBole full-sort exports, with explicit padding/history exclusions, external-token alignment and rejection of unexpected nonfinite eligible scores. A separate pinned actual-helper CI check exercises synthetic scores and the existing RankProbe CLI; labels are not inferred.
 
 ## 0.1.0a3 — readable comparisons and numerical stability
 

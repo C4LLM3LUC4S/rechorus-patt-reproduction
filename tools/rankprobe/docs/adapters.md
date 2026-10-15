@@ -44,3 +44,7 @@ An explicit [TREC normalization helper](trec-normalization.md) handles the trail
 ## BEIR export and evaluation
 
 BEIR already writes compatible TREC predictions. The [integration recipe](beir-workflow.md) explains how to preserve results before in-place same-ID filtering, choose export depth and transfer actual qrels entries to four-column text. Its optional integration check calls the real BEIR modules on original synthetic inputs. BEIR and PyTorch are not RankProbe runtime requirements; model retrieval is outside this check.
+
+## RecBole nonsequential full-sort
+
+The [safe export helper and recipe](recbole-workflow.md) convert a complete masked score matrix from the same evaluation object's user/item mappings and history. Only declared padding/history positions are excluded, with reasons saved separately. Eligible nonfinite values, sequential contexts, invalid or duplicate IDs and inconsistent shapes are rejected. The caller must supply the exact scored user order and dataset; a same-shaped mapping from another experiment cannot be detected automatically. Predictions contain no inferred relevance labels. The helper requires optional NumPy; actual RecBole/PyTorch execution belongs to a separate bounded CI integration environment.
