@@ -1,5 +1,11 @@
 # Verification record
 
+## ReChorus sampled runner capture (unchanged `0.1.0a3` core)
+
+Official ReChorus's default top-100 list-cell CSV cannot be consumed by the existing matrix NPZ adapter and omits the original target position. A [capture recipe](rechorus-workflow.md) keeps the actual runner's original sampled candidate matrix before that lossy presentation stage. The optional checker normally imports four checksum-pinned upstream source modules, exercises the actual dataset preparation/collation/prediction loop on two original synthetic contexts from the same user, writes the documented NPZ bridge, then calls the existing exporter and installed RankProbe CLI. A separate fully judged synthetic probe verifies the expected native pessimistic tie-order difference.
+
+Seven new local tests passed; one Windows symlink test skipped for privileges. The source-validation change received its targeted check, and independent source/protocol/doc review found no blocking issue. Actual Torch execution remains a current-head CI gate; no benchmark data is used. The archive contains bundled dataset files, which CI does not extract or load. This check does not establish full-sort/sequential/CTR support, full upstream environment compatibility, adoption or human time saved.
+
 ## RecBole masked-score workflow (unchanged `0.1.0a3` core)
 
 Pinned official RecBole helper source confirms that padding and nonsequential history scores are set to `-inf`, which cannot be imported as finite predictions. A new NumPy-only source helper uses the exact evaluation object's mappings/history to export eligible scores and explicit exclusion reasons. Unexpected nonfinite eligible scores and incompatible context/identity shapes fail; no judgments are inferred. The [recipe](recbole-workflow.md) gives the supported scope and separate-label workflow.

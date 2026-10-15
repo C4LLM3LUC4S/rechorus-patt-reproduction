@@ -10,6 +10,8 @@ Using BEIR? The [export/evaluation recipe](docs/beir-workflow.md) preserves the 
 
 Using RecBole nonsequential full-sort scores? The [safe export recipe](docs/recbole-workflow.md) records padding/history exclusions, preserves external tokens and rejects unexpected nonfinite scores without inventing judgments.
 
+Using ReChorus sampled evaluation? The [runner capture recipe](docs/rechorus-workflow.md) creates the documented NPZ bridge before the native top-100 presentation export loses candidate and target information.
+
 ## Start in two minutes
 
 Requires Python 3.10 or newer. Install from this checkout; no PyPI release is claimed.
