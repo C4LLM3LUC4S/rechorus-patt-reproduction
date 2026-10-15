@@ -18,13 +18,17 @@ python scripts/export_rechorus.py test_predictions.npz --out local_export.csv --
 
 With these positive-only judgments, MRR@1 can be 1 because only queries with a known positive first are eligible. Read its coverage before interpreting it. The [synthetic example and explanation](metrics.md#positive-only-labels) show 1 of 2 queries eligible; this is not evidence that the whole run ranked perfectly.
 
-For a verified one-positive sampled evaluation protocol, explicitly declare the remaining sampled candidates nonrelevant:
+For an already verified one-positive sampled-negative evaluation protocol, keep the default unknown labels from the export above and apply the nonrelevance assumption when auditing that existing CSV:
 
 ```sh
-python scripts/export_rechorus.py test_predictions.npz --out local_export.csv --positive-index 0 --other-candidates nonrelevant --limit-queries 100
+python -m rankprobe audit local_export.csv --unjudged nonrelevant --out reports/sampled-assumed
 ```
 
-The labels record that assumption. They are not proof that those items are truly irrelevant in the whole corpus. Multiple-positive conventions, ragged candidate arrays, padding scores, and alternative archive fields need a different declared adapter. A repeated declared positive is rejected because this convention would assign contradictory labels to one item.
+The report records `unjudged=nonrelevant`, an explicit assumption finding, and `assumed_nonrelevant_candidates` separately from the supplied-label count `judged_candidates`. This option applies to every unresolved candidate in the audit, so the verified protocol must justify that treatment for all of them. It does not establish complete qrels.
+
+The export-time alternative `--other-candidates nonrelevant` writes literal `0` values into the CSV and records that choice in `<output>.metadata.json`. The core audit does not automatically ingest this sidecar: those zeros count as supplied labels, and the report cannot recover their export-time assumption from the CSV alone. Retain the sidecar with the CSV so the original declaration remains available for review. Counting a value as a supplied label does not verify its origin.
+
+Either route declares an evaluation assumption; it does not prove that those items are truly irrelevant in the whole corpus. Multiple-positive conventions, ragged candidate arrays, padding scores, and alternative archive fields need a different declared adapter. A repeated declared positive is rejected because this convention would assign contradictory labels to one item.
 
 ## Identity and privacy
 

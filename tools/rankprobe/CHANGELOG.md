@@ -2,6 +2,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Clarified how to retain sampled-negative assumptions in audit reports: keep unknown labels in the exported CSV, then explicitly declare the audit policy when the source protocol supports it. Materialized zero labels and the exporter's separate metadata are distinguished from report-recorded assumptions.
 - Added a separately scoped pinned-reference exp2 NDCG case for original integer grades 0–3. Only an oracle qrels copy receives the gain mapping; 12 per-query/macro comparisons supplement the existing linear checks and preserve the original inputs.
 - Added a report-local explanation when a perfect metric value covers only a subset of submitted queries. The hint uses exact values and valid eligibility counts, without changing JSON, labels, metrics or finding severity.
 - Explained why positive-only judgments can produce conditional MRR@1 = 1 with incomplete query coverage, using a four-row original example. Excluded queries stay unknown; the metric and eligibility rules are unchanged.
