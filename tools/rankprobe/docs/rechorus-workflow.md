@@ -38,7 +38,19 @@ python -m rankprobe audit sampled-predictions.csv --cutoffs 1,10 --out sampled-r
 
 `--positive-index 0` is an explicit assertion about this dataset protocol. It labels only that observed positive; other candidates remain unknown by default. The native framework evaluates under its own sampled-negative assumptions. Do not silently copy those assumptions into an audit of real relevance judgments.
 
-The existing exporter assigns each row a distinct `query_000001`, etc. Thus two interaction rows from the same source user remain separate prediction contexts. Item tokens are remapped consistently within this one export. Original IDs and their mapping are omitted from the CSV/metadata, and this is pseudonymization, not an anonymity guarantee. Cross-run comparison requires the same source row order and item mapping; shuffled independent exports are not aligned merely because they have the same generated names. See [adapter identity rules](adapters.md).
+The default local identity mode assigns each row a distinct `query_000001`, etc. Thus two interaction rows from the same source user remain separate prediction contexts. Item tokens are remapped consistently within this one export. Original IDs and their mapping are omitted from the CSV/metadata, and this is pseudonymization, not an anonymity guarantee. Cross-run comparison requires the same source row order and item mapping; shuffled independent exports are not aligned merely because they have the same generated names.
+
+For cross-run comparisons, add your existing stable event/context IDs to the capture, in the exact scored row order:
+
+```python
+# stable_event_ids comes from your evaluation records, not generated user numbers.
+# It must distinguish different time/history contexts belonging to the same user.
+query_ids = np.asarray(stable_event_ids)
+with Path("sampled-scores-with-events.npz").open("xb") as handle:
+    np.savez(handle, scores=scores, item_id=candidate_ids, query_id=query_ids)
+```
+
+Then use `--identity source` with that NPZ. This mode requires unique string event IDs and preserves original item IDs. It can expose physical candidate-pool changes that local first-appearance pseudonyms conceal. It does not prove that independently supplied IDs refer to the same real event or shared item namespace, and it retains potentially identifying source tokens. See [adapter identity rules](adapters.md) before sharing or comparing exports.
 
 This first recipe excludes `test_all=True`. That path has different catalog/history masking and can repeat the observed target in its candidate universe. The RecBole mask helper uses different dataset contracts and cannot be applied to it by renaming objects.
 

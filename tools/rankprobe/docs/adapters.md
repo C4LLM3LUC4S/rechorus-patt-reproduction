@@ -28,13 +28,21 @@ The labels record that assumption. They are not proof that those items are truly
 
 Each matrix row receives `query_000001`, etc., including multiple events for the same user. Item IDs are mapped to `item_000001`, etc., in first-appearance order. The mapping is not exported. Source user IDs, file paths, and original item IDs are omitted from the CSV and metadata.
 
-Mappings are local to each export. Cross-run comparison requires aligned source rows and an identical item mapping; independently shuffled exports do not satisfy that requirement merely because the remapped names look alike. For general comparisons, export stable, appropriately protected event and item IDs directly from the originating evaluation pipeline.
+The default `--identity local` mappings are local to each export. Cross-run comparison requires aligned source rows and an identical item mapping; independently shuffled exports do not satisfy that requirement merely because the remapped names look alike. Two different physical pools `[A,B,C]` and `[A,D,E]` can both become `item_000001/2/3`. Comparing those local names would falsely declare a matched pool.
+
+For cross-run work, opt into `--identity source` and include a `query_id` array in the NPZ: a one-dimensional string vector with one unique, nonempty event/context ID per source row. The exporter preserves these query tokens and original integer/string item tokens, so candidate changes and reordered event rows remain inspectable. It validates every source query ID even when exporting only a prefix. Integer item IDs become exact decimal strings; text is preserved, and bytes must decode as UTF-8. Duplicate nonpositive candidates remain available to the audit; the existing repeated-positive rejection still applies.
+
+```sh
+python scripts/export_rechorus.py predictions.npz --out comparison-input.csv --positive-index 0 --identity source
+```
+
+This mode retains source identities. The caller must supply IDs from the same namespace and identify the same prediction context across runs; a unique user ID alone may omit changing time/history. The exporter cannot certify that assertion. Missing/invalid/duplicate event IDs fail instead of falling back to generated row names. Review retained query/item tokens before sharing, and protect exports with the same care as source data. The `user_id` array is not exported directly, but caller-supplied `query_id` tokens may themselves identify people.
 
 This is pseudonymization, not a guarantee of anonymity: scores and relationships can still identify an experiment or user activity. It also does not confer permission to redistribute a dataset or derivative prediction file.
 
 ## Output and reproducibility
 
-The exporter writes CSV and `<output>.metadata.json`. Metadata records a source SHA-256, selected query count, positive column, negative assumption, and remapping caveats. Existing outputs are refused unless `--overwrite` is explicit; the source archive cannot be chosen as an output. No complete qrels are inferred.
+The exporter writes CSV and `<output>.metadata.json`. Metadata records a source SHA-256, selected query count, positive column, negative assumption, identity mode and alignment/privacy caveats. Existing outputs are refused unless `--overwrite` is explicit; neither output may replace the source archive, including through a symbolic link or hard link. The CSV and metadata must also be distinct files. No complete qrels are inferred.
 
 Source archives are read only. To keep local experiments private, store exports and reports outside the repository or under an ignored directory. Public examples in this repository are synthetic. Real experiment validation should publish only reviewed aggregate observations with clear data-use permission.
 
