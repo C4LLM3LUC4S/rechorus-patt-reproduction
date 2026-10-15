@@ -6,6 +6,8 @@ RankProbe is a local, model-free audit tool for recommendation and retrieval exp
 
 [中文说明](README.zh-CN.md) · [Input contract](docs/input-format.md) · [Metric semantics](docs/metrics.md) · [CLI / Python API](docs/usage.md) · [Five-minute trial](docs/try-it.md) · [Limitations](docs/limitations.md)
 
+Using BEIR? The [export/evaluation recipe](docs/beir-workflow.md) preserves the retrieved snapshot, makes self-match filtering and export depth explicit, and transfers existing qrels without inventing labels.
+
 ## Start in two minutes
 
 Requires Python 3.10 or newer. Install from this checkout; no PyPI release is claimed.

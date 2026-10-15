@@ -13,6 +13,8 @@ RankProbe 在本地读取候选分数及相关性标签，生成 HTML 和 JSON �
 
 [English](README.md) · [输入格式](docs/input-format.md) · [指标定义](docs/metrics.md) · [五分钟试用](docs/try-it.md) · [能力边界](docs/limitations.md)
 
+使用 BEIR 时，可按 [导出与评估接入指南](docs/beir-workflow.md) 保留检索原始快照，明确同名 ID 过滤和候选截断策略，并仅转移已有 qrels 标签。
+
 ## 快速开始
 
 需要 Python 3.10 或以上版本。目前从本地源码安装，尚未声称已发布到 PyPI。

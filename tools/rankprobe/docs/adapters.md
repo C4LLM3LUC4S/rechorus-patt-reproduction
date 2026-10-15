@@ -40,3 +40,7 @@ Source archives are read only. To keep local experiments private, store exports 
 ## TREC run compatibility
 
 An explicit [TREC normalization helper](trec-normalization.md) handles the trailing run fields allowed by trec_eval. It creates a validated new file, refuses overwrites, and prints source/output hashes. The documented NIST case records the actual import obstacle and the query-coverage difference that becomes inspectable after conversion. This helper requires an installed RankProbe and the source checkout; it is not a new installed CLI subcommand.
+
+## BEIR export and evaluation
+
+BEIR already writes compatible TREC predictions. The [integration recipe](beir-workflow.md) explains how to preserve results before in-place same-ID filtering, choose export depth and transfer actual qrels entries to four-column text. Its optional integration check calls the real BEIR modules on original synthetic inputs. BEIR and PyTorch are not RankProbe runtime requirements; model retrieval is outside this check.
