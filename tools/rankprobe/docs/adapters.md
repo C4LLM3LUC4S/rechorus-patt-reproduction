@@ -16,6 +16,8 @@ You must explicitly declare the positive column. The exporter does not infer it 
 python scripts/export_rechorus.py test_predictions.npz --out local_export.csv --positive-index 0 --limit-queries 100
 ```
 
+With these positive-only judgments, MRR@1 can be 1 because only queries with a known positive first are eligible. Read its coverage before interpreting it. The [synthetic example and explanation](metrics.md#positive-only-labels) show 1 of 2 queries eligible; this is not evidence that the whole run ranked perfectly.
+
 For a verified one-positive sampled evaluation protocol, explicitly declare the remaining sampled candidates nonrelevant:
 
 ```sh

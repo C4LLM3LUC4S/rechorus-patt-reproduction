@@ -23,6 +23,10 @@ For each query, reciprocal rank is `1 / rank` for the first relevant item within
 
 Under `unjudged=unknown`, a query is excluded whenever any candidate within top k has an unknown label. This conservative rule also excludes a query whose first item is known relevant but a later top-k item is unknown. Treating unknown candidates as nonrelevant is available only as an explicit protocol choice. The report includes eligible-query counts, so a mean computed on a small judged subset is not mistaken for full coverage.
 
+### Positive-only labels
+
+When the only known judgments are relevant positives, default MRR@1 eligibility selects queries whose first item is a known positive. If that subset is nonempty, its MRR@1 is necessarily 1. Unknown-first queries are excluded, so this does not mean the whole run ranked perfectly. In the [four-row synthetic example](../examples/README.md), MRR@1 is 1.0 with `partial` status and only 1 of 2 queries eligible; NDCG@1 and Recall@1 are unavailable. Read the value together with its coverage. Do not turn excluded queries into zeros or call the eligible fraction HitRate.
+
 ## NDCG@k
 
 `DCG@k = sum(gain(relevance_at_rank) / log2(rank + 1))` for ranks starting at one. NDCG divides DCG by the ideal DCG under the report's judgment scope. Queries with unknown candidate labels are not scored under the default unknown policy.

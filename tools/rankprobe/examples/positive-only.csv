@@ -1,0 +1,5 @@
+query_id,item_id,score,relevance
+alpha_positive_first,observed_positive,0.9,1
+alpha_positive_first,unjudged_candidate,0.2,
+beta_unknown_first,unjudged_candidate,0.9,
+beta_unknown_first,observed_positive,0.2,1
