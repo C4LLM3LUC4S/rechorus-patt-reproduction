@@ -52,15 +52,42 @@ with Path("sampled-scores-with-events.npz").open("xb") as handle:
 
 Then use `--identity source` with that NPZ. This mode requires unique string event IDs and preserves original item IDs. It can expose physical candidate-pool changes that local first-appearance pseudonyms conceal. It does not prove that independently supplied IDs refer to the same real event or shared item namespace, and it retains potentially identifying source tokens. See [adapter identity rules](adapters.md) before sharing or comparing exports.
 
-This first recipe excludes `test_all=True`. That path has different catalog/history masking and can repeat the observed target in its candidate universe. The RecBole mask helper uses different dataset contracts and cannot be applied to it by renaming objects.
+The sampled NPZ recipe excludes `test_all=True`. That path needs the separate helper below because it has different catalog/click masking and repeats the observed target in its candidate universe. The RecBole mask helper uses different dataset contracts and cannot be applied to it by renaming objects.
 
 ### Why full-sort needs a separate contract
 
 In this source's `GeneralModel.Dataset`, full-sort columns are `[observed_target, 1, ..., n_items-1]`. Column zero is the target, **not padding**. Its catalog copy appears again at the column equal to its item ID. `BaseRunner.predict` masks catalog columns listed in `train_clicked_set | residual_clicked_set`, leaving the special target column untouched. The inspected [`BaseReader`](https://github.com/THUwangcy/ReChorus/blob/c164ec4303cc20ddcfbd1b57de366a481811d1e5/src/helpers/BaseReader.py) constructs residual clicks from both dev and test interactions, without filtering by the individual event's time. The target's catalog duplicate and other held-out items can therefore be masked too.
 
-These are source-specific evaluation choices; they do not establish a leakage defect or a causal history policy. A portable export would need separate reasons for training clicks, residual dev/test clicks and the target duplicate, and preserve the finite target at column zero. The current NPZ exporter rejects the raw nonfinite matrix. Do not apply a RecBole-style "remove padding column zero" rule: that would remove the observed positive while its catalog duplicate is already masked.
+These are source-specific evaluation choices; they do not establish a leakage defect or a causal history policy. A portable export needs separate reasons for training clicks, residual dev/test clicks and the target duplicate, and must preserve the finite target at column zero. The NPZ exporter rejects the raw nonfinite matrix. Do not apply a RecBole-style "remove padding column zero" rule: that would remove the observed positive while its catalog duplicate is already masked.
 
-The integration checker includes a bounded rejection probe using an actual `BaseReader` over original tiny synthetic CSVs, then the actual dataset and runner. It verifies the masks and finite target before asserting that raw NPZ export fails without writing a CSV. This probe establishes the input obstacle; it does not add supported full-sort export or certify the evaluation protocol.
+The integration checker includes a bounded rejection probe using an actual `BaseReader` over original tiny synthetic CSVs, then the actual dataset and runner. It verifies the masks and finite target before asserting that raw NPZ export fails without writing a CSV. This probe establishes the input obstacle; it does not certify the evaluation protocol.
+
+### Export the checked base full-sort contract
+
+`scripts/export_rechorus_full_sort.py` is a separate NumPy-only source helper for the standard `GeneralModel.Dataset` dev/test contract. It accepts the complete runner matrix and the same dataset, with caller-supplied unique event IDs in the exact scored row order:
+
+```python
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path("path/to/rankprobe/scripts").resolve()))
+from export_rechorus_full_sort import export_full_sort
+
+test_data = data_dict["test"]  # model.test_all must be 1 / True
+scores = runner.predict(test_data)
+metadata = export_full_sort(scores, test_data, stable_event_ids, Path("full-sort-export"))
+```
+
+`stable_event_ids` must identify the actual prediction contexts from your evaluation records. Multiple interactions from one user need different IDs; a user ID alone is insufficient. The helper validates uniqueness and shape but cannot establish that separately supplied IDs or score rows refer to the same real context.
+
+The new destination's parent must exist; existing destinations and symbolic-link ancestors are refused. The helper verifies each individual dataset row has the base `user_id,item_id` fields and the exact `[target,1..n_items-1]` candidate order. Custom/sequence/context dataset rows with extra fields are rejected by this first bounded bridge. Scores must be float16/32/64, with `-inf` at precisely the native clicked catalog positions and finite values everywhere else. The target catalog duplicate must already be masked by the declared native union; the exporter does not create additional masks.
+
+It writes `predictions.csv` and `exclusions.json`. The retained observed target has relevance 1 under this explicit one-positive convention; other eligible candidates remain unknown. Source item IDs become exact decimal strings, and supplied event IDs are retained. Metadata records overlapping `train_clicked`, `residual_clicked` and `own_target_catalog_duplicate` reasons. Their counts can overlap and must not be summed as distinct exclusions. Real exported identifiers can identify people, so review before sharing.
+
+```sh
+python -m rankprobe audit full-sort-export/predictions.csv --cutoffs 1,10 --out full-sort-report
+```
+
+Inspect the exclusion sidecar alongside report coverage. Residual clicks include dev/test observations under the pinned upstream policy; they are not necessarily information available before each event. Unexpected NaN, positive infinity or unmasked negative infinity fails before output, rather than being silently discarded. This bridge consumes the complete matrix already returned by the upstream runner; it does not stream model inference. Begin with a small permitted subset and account for catalog-sized CSV and exclusion metadata. The adapter neither fills unknown labels with zero nor asserts complete judgments, native metric parity, or support for all upstream model families.
 
 ## Interpret expected tie differences
 
@@ -76,7 +103,7 @@ With the verified source checkout and CPU helper dependencies used by CI:
 python scripts/check_rechorus_workflow.py --source path/to/ReChorus --out rechorus-workflow-example
 ```
 
-The check uses normally imported official `BaseRunner` and `GeneralModel.Dataset` on original synthetic data. It exercises prepared dataset rows, collation, model scoring and the actual runner prediction loop, then captures NPZ and calls the existing RankProbe exporter and installed CLI. A separate native evaluator probe asserts the expected tie difference. The full-sort rejection probe adds actual `BaseReader` construction from tiny generated CSVs. It does not train a model, use the bundled benchmark data, or validate all upstream model families.
+The check uses normally imported official `BaseRunner` and `GeneralModel.Dataset` on original synthetic data. It exercises prepared dataset rows, collation, model scoring and the actual runner prediction loop, then captures NPZ and calls the existing RankProbe exporter and installed CLI. A separate native evaluator probe asserts the expected tie difference. The full-sort workflow adds actual `BaseReader` construction from tiny generated CSVs, raw NPZ rejection, mask-aware safe export and a separate installed-CLI report. It does not train a model, use the bundled benchmark data, or validate all upstream model families.
 
 CI verifies source archive SHA256 `0e66340a9d496ca6277ded4f6f0b51f92bf739eba4f26a14d1e8a26cb0c75cd1`, extracts only the source subtree and checks the runner/model source bytes before execution. The upstream archive contains bundled dataset files, but those are not extracted, loaded or used by this job. The checker never imports `main.py` and does not execute its presentation exporter; the CSV limitation above is established from the fixed source.
 

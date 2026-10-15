@@ -11,7 +11,7 @@
 - Added a NumPy-only source helper for nonsequential RecBole full-sort exports, with explicit padding/history exclusions, external-token alignment and rejection of unexpected nonfinite eligible scores. A separate pinned actual-helper CI check exercises synthetic scores and the existing RankProbe CLI; labels are not inferred.
 - Added a public ReChorus sampled-evaluation capture recipe and optional actual-dataset/runner check for the existing NPZ bridge, addressing the native top-100 presentation CSV's lost candidate/target information and documenting expected pessimistic tie-rule differences.
 - Added opt-in source identities to the NPZ exporter for comparisons: explicit unique event IDs and original item tokens avoid false matched pools from independently generated local pseudonyms. Default local identities and unknown-label behavior are preserved. Output hard links to the source NPZ are rejected even with overwrite.
-- Added an actual-reader full-sort boundary probe for ReChorus: its column zero is an observed target, and catalog masks include training and residual dev/test clicks. Raw masked NPZ remains rejected; this is evidence for a separate export contract, not full-sort export support.
+- Added an actual-reader boundary probe and separate NumPy-only helper for the checked base ReChorus full-sort dev/test contract. Column zero is an observed target; stable event IDs, exact native item IDs, target positives, unknown eligible non-target labels and overlapping train/residual/target-copy mask reasons are preserved. The checker verifies safe CSV export and a separate installed-CLI report after raw NPZ rejection; broader model families remain outside scope.
 
 ## 0.1.0a3 — readable comparisons and numerical stability
 

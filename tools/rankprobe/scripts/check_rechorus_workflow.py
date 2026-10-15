@@ -1,8 +1,8 @@
-"""Check an actual sampled one-positive ReChorus prediction/export workflow.
+"""Check actual sampled and native full-sort ReChorus prediction/export workflows.
 
 Original synthetic fixtures exercise the pinned upstream Dataset and Runner.
 No benchmark data is loaded, and no model is trained. A separate full-sort
-reader/runner probe verifies why its raw output remains unsupported for export.
+reader/runner probe checks a mask-aware export for the pinned native contract.
 Sequential models, CTR and list-wise reranking are outside this check's scope.
 """
 
@@ -105,6 +105,17 @@ def _load_exporter():
     return module.export_npz
 
 
+def _load_full_sort_exporter():
+    spec = importlib.util.spec_from_file_location(
+        "rankprobe_rechorus_full_sort_exporter",
+        Path(__file__).with_name("export_rechorus_full_sort.py"),
+    )
+    require(spec is not None and spec.loader is not None, "full-sort exporter: source missing")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.export_full_sort
+
+
 def _fixtures(np, pd, torch, BaseRunner, GeneralModel):
     # Each row is an independent prediction context, despite the repeated user.
     corpus = SimpleNamespace(
@@ -162,10 +173,10 @@ def _run_cli(out: Path, arguments: list[str]) -> subprocess.CompletedProcess:
         raise GateError("RankProbe CLI: could not start subprocess") from exc
 
 
-def run_audit(out: Path, predictions: Path) -> dict:
+def run_audit(out: Path, predictions: Path, *, name: str = "sampled") -> dict:
     report_directory = new_output_directory(out / "report")
     process = _run_cli(out, [
-        "audit", str(predictions), "--name", "sampled", "--cutoffs", "1,2",
+        "audit", str(predictions), "--name", name, "--cutoffs", "1,2",
         "--fail-on", "never", "--out", str(report_directory),
     ])
     require(process.returncode == 0, "RankProbe CLI: nonzero exit status")
@@ -177,8 +188,11 @@ def run_audit(out: Path, predictions: Path) -> dict:
         raise GateError("RankProbe CLI: JSON missing or invalid") from exc
 
 
-def _check_full_sort_barrier(out: Path, np, torch, BaseRunner, GeneralModel, export_npz) -> dict:
-    """Observe full-sort semantics without claiming an export adapter exists."""
+def _check_full_sort_workflow(out: Path, np, torch, BaseRunner, GeneralModel, export_npz) -> dict:
+    """Check the exact native full-sort contract; retain the raw NPZ rejection."""
+    from rankprobe.io import read_predictions
+
+    export_full_sort = _load_full_sort_exporter()
     input_root = out / "full-sort-inputs"
     input_directory = input_root / "synthetic"
     input_root.mkdir(exist_ok=False)
@@ -209,9 +223,11 @@ def _check_full_sort_barrier(out: Path, np, torch, BaseRunner, GeneralModel, exp
             "full-sort reader: train/residual clicked sets differ")
     require(corpus.data_df["test"]["item_id"].tolist() == [3, 5],
             "full-sort reader: actual context time sorting differs")
+    train_clicked_snapshot = {user: set(items) for user, items in corpus.train_clicked_set.items()}
+    residual_clicked_snapshot = {user: set(items) for user, items in corpus.residual_clicked_set.items()}
     model_args = SimpleNamespace(
         device=torch.device("cpu"), model_path="unused-full-sort.pt", buffer=0,
-        num_neg=1, dropout=0, test_all=True,
+        num_neg=1, dropout=0, test_all=1,
     )
 
     class Model(GeneralModel):
@@ -278,6 +294,89 @@ def _check_full_sort_barrier(out: Path, np, torch, BaseRunner, GeneralModel, exp
             raise GateError("full-sort export: unsupported raw masked matrix unexpectedly accepted")
         require(not destination.exists() and not destination.with_suffix(".csv.metadata.json").exists(),
                 "full-sort export: rejected input created export output")
+        query_ids = ["event-0003", "event-0005"]
+        query_ids_snapshot = list(query_ids)
+        exported_directory = out / "full-sort-export"
+        exclusions = export_full_sort(predictions, dataset, query_ids, exported_directory)
+        exported_csv = exported_directory / "predictions.csv"
+        require(exclusions["exported_rows"] == 6 and exclusions["observed_positive_rows"] == 2
+                and exclusions["unknown_rows"] == 4 and exclusions["excluded_rows"] == 8,
+                "full-sort safe export: positive/unknown/exclusion counts differ")
+        require(exclusions["exclusions_by_reason"] == {
+            "train_clicked": 2, "residual_clicked": 6, "own_target_catalog_duplicate": 2,
+        }, "full-sort safe export: overlapping exclusion reason counts differ")
+        require(exclusions["qrels_complete"] is False
+                and exclusions["declared_positive_column"] == 0
+                and exclusions["other_candidates"] == "unknown"
+                and exclusions["predictions_sha256"] == digest(exported_csv),
+                "full-sort safe export: positive/unknown contract or prediction hash differs")
+        require([query["query_id"] for query in exclusions["queries"]] == query_ids,
+                "full-sort safe export: caller-declared event IDs changed")
+        for index, query in enumerate(exclusions["queries"]):
+            require(query["observed_target_item_id"] == str(targets[index])
+                    and query["row_index"] == index and query["exported_rows"] == 3,
+                    "full-sort safe export: observed target or event row metadata differs")
+            expected_exclusions = {}
+            for column in (1, 3, 4, 5):
+                reasons = ["train_clicked"] if column == 1 else ["residual_clicked"]
+                if column == int(targets[index]):
+                    reasons.append("own_target_catalog_duplicate")
+                expected_exclusions[column] = (str(column), set(reasons))
+            require({entry["column_index"]: (entry["item_id"], set(entry["reasons"]))
+                     for entry in query["exclusions"]} == expected_exclusions,
+                    "full-sort safe export: excluded columns, item IDs or reasons differ")
+        require(json.loads((exported_directory / "exclusions.json").read_text(encoding="utf-8"))
+                == exclusions, "full-sort safe export: written exclusion metadata differs")
+        expected_rows = [
+            ("event-0003", "3", float(predictions[0, 0]), 1.0),
+            ("event-0003", "2", .5, None), ("event-0003", "6", .25, None),
+            ("event-0005", "5", float(predictions[1, 0]), 1.0),
+            ("event-0005", "2", .5, None), ("event-0005", "6", .25, None),
+        ]
+        require([(row.query_id, row.item_id, row.score, row.relevance)
+                 for row in read_predictions(exported_csv)] == expected_rows,
+                "full-sort safe export: original IDs/scores/positive and unknown labels changed")
+        rejected_eligible = []
+        for name, value in (("nan", float("nan")), ("positive-infinity", float("inf")),
+                            ("unexpected-negative-infinity", float("-inf"))):
+            invalid_scores = predictions.copy()
+            invalid_scores[0, 2] = value
+            rejected_directory = out / f"rejected-full-sort-{name}"
+            try:
+                export_full_sort(invalid_scores, dataset, query_ids, rejected_directory)
+            except ValueError:
+                require(not rejected_directory.exists(),
+                        "full-sort invalid eligible score: output was created before rejection")
+                rejected_eligible.append(name)
+            else:
+                raise GateError("full-sort invalid eligible score: non-finite candidate was silently removed")
+        safe_input_hashes = {path.name: digest(path) for path in (
+            exported_csv, exported_directory / "exclusions.json",
+        )}
+        safe_report = run_audit(exported_directory, exported_csv, name="full-sort")
+        require(safe_report["report_type"] == "audit" and safe_report["run_name"] == "full-sort",
+                "full-sort audit: report type or name differs")
+        require(safe_report["summary"]["rows"] == 6
+                and safe_report["summary"]["queries"] == 2
+                and safe_report["summary"]["unknown_candidates"] == 4,
+                "full-sort audit: event/candidate/unknown counts differ")
+        require(safe_report["protocol"]["unjudged"] == "unknown"
+                and safe_report["protocol"]["qrels_complete"] is False,
+                "full-sort audit: unknown/completeness policy changed")
+        require(safe_report["metrics"]["mrr@1"]["value"] == 1.0
+                and safe_report["metrics"]["mrr@1"]["eligible_query_ids"] == query_ids,
+                "full-sort audit: finite observed positives or event IDs were lost")
+        require(safe_report["metrics"]["mrr@2"]["value"] is None
+                and safe_report["metrics"]["ndcg@1"]["value"] is None
+                and safe_report["metrics"]["recall@1"]["value"] is None,
+                "full-sort audit: unknown catalog judgments were treated as zero")
+        safe_sources = safe_report["provenance"]["sources"]
+        require(len(safe_sources) == 1 and safe_sources[0]["filename"] == exported_csv.name
+                and safe_sources[0]["sha256"] == safe_input_hashes[exported_csv.name],
+                "full-sort audit: safe prediction provenance hash differs")
+        require({path.name: digest(path) for path in (
+            exported_csv, exported_directory / "exclusions.json",
+        )} == safe_input_hashes, "full-sort audit: safe export files changed")
         require(digest(archive) == archive_hash
                 and np.array_equal(predictions, prediction_snapshot)
                 and np.array_equal(candidate_matrix, candidate_snapshot)
@@ -290,8 +389,12 @@ def _check_full_sort_barrier(out: Path, np, torch, BaseRunner, GeneralModel, exp
                 "full-sort barrier: original context rows or candidates changed")
         require({path.name: digest(path) for path in source_paths} == input_hashes,
                 "full-sort barrier: original synthetic input CSVs changed")
+        require(corpus.train_clicked_set == train_clicked_snapshot
+                and corpus.residual_clicked_set == residual_clicked_snapshot
+                and query_ids == query_ids_snapshot,
+                "full-sort workflow: clicked sets or caller-declared event IDs changed")
         observations = {
-            "scope": "actual upstream full-sort barrier; no full-sort export adapter",
+            "scope": "pinned native GeneralModel.Dataset full-sort mask-aware export",
             "prediction_contexts": 2, "candidates_per_context": 7,
             "column_zero_role": "observed positive target, not padding",
             "positive_first_columns_retained": 2, "masked_catalog_positions": 8,
@@ -301,6 +404,15 @@ def _check_full_sort_barrier(out: Path, np, torch, BaseRunner, GeneralModel, exp
             "native_hr_at_1": float(native["HR@1"]),
             "raw_npz_export_status": "rejected before CSV or metadata creation",
             "raw_npz_sha256": archive_hash, "synthetic_source_csv_sha256": input_hashes,
+            "safe_export_rows": 6, "safe_export_positive_rows": 2, "safe_export_unknown_rows": 4,
+            "safe_export_excluded_rows": 8,
+            "safe_export_exclusions_by_reason": exclusions["exclusions_by_reason"],
+            "safe_export_query_ids": query_ids,
+            "safe_export_input_sha256": safe_input_hashes,
+            "safe_export_rejected_eligible_nonfinite_scores": rejected_eligible,
+            "safe_export_mrr_at_1": 1.0,
+            "safe_export_ndcg_at_1": None, "safe_export_recall_at_1": None,
+            "official_test_all_argument": model_args.test_all,
         }
     finally:
         model.test_all = original_test_all
@@ -406,10 +518,12 @@ def check_workflow(out: Path, source: Path) -> dict:
             and rankprobe_tie["mrr@1"]["value"] == 1.0,
             "tie boundary: RankProbe lexical positive rank differs")
 
-    full_sort_barrier = _check_full_sort_barrier(
+    full_sort_workflow = _check_full_sort_workflow(
         out, np, torch, BaseRunner, GeneralModel, export_npz,
     )
     inputs = (archive, exported_csv, metadata_path, out / "unsupported-full-sort.npz",
+              out / "full-sort-export" / "predictions.csv",
+              out / "full-sort-export" / "exclusions.json",
               *sorted((out / "full-sort-inputs" / "synthetic").glob("*.csv")))
     hashes_before = {str(path.relative_to(out)): digest(path) for path in inputs}
     report = run_audit(out, exported_csv)
@@ -459,7 +573,7 @@ def check_workflow(out: Path, source: Path) -> dict:
             "prediction_contexts": 2, "distinct_source_users": 1,
             "candidates_per_context": 102, "exported_rows": 204,
             "unknown_candidates": 202, "declared_positive_column": 0,
-            "full_sort_barrier": full_sort_barrier,
+            "full_sort_workflow": full_sort_workflow,
             "explicit_synthetic_tie_oracle": {
                 "upstream_hr_at_1": float(upstream_tie["HR@1"]),
                 "upstream_ndcg_at_1": float(upstream_tie["NDCG@1"]),
@@ -489,14 +603,19 @@ def check_workflow(out: Path, source: Path) -> dict:
             "full_sort_column_zero_is_positive_not_recbole_padding": True,
             "unsupported_raw_full_sort_export_rejected_without_output": True,
             "full_sort_synthetic_inputs_and_fresh_model_state_preserved": True,
+            "full_sort_exact_native_layout_safely_exported": True,
+            "full_sort_explicit_event_and_native_item_ids_preserved": True,
+            "full_sort_known_mask_exclusions_have_overlapping_reasons": True,
+            "full_sort_eligible_nonfinite_scores_rejected_without_output": True,
+            "full_sort_actual_cli_preserves_unknown_labels_and_positive_rows": True,
         },
         "limitations": [
             "Original synthetic fixtures only; no benchmark data was loaded or used.",
             "Actual GeneralModel Dataset and BaseRunner are used; no trained recommendation model is evaluated.",
             "Positive column zero is a checked fixture convention and a caller assertion for other inputs.",
-            "Query IDs represent matrix rows; item pseudonyms are local to this export, not portable cross-run identities.",
+            "The sampled NPZ example uses export-local row/item pseudonyms; full-sort event/item IDs are preserved with caller-owned alignment.",
             "The separate tie oracle supplies explicit synthetic zeros; the default exported run preserves unknown labels.",
-            "The separate actual full-sort reader/runner probe only verifies a rejection barrier; full-sort export remains unsupported.",
+            "Full-sort export covers only the pinned native GeneralModel.Dataset layout and declared event row alignment; arbitrary overridden full-sort models are unsupported.",
             "Residual clicked sets include validation/test interactions; this is an upstream candidate policy, not causal history or a leakage certificate.",
             "No sequential, CTR, reranking, universal metric parity, adoption or human time saved is established.",
         ],

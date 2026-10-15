@@ -17,7 +17,7 @@ RankProbe 在本地读取候选分数及相关性标签，生成 HTML 和 JSON �
 
 使用 RecBole 非序列 full-sort 时，可按 [安全导出指南](docs/recbole-workflow.md) 记录 padding/history 排除原因，保留外部 ID，并拒绝有效候选上的异常分数；未观察到的交互仍保持未知。
 
-使用 ReChorus sampled 评测时，可按 [runner 捕获指南](docs/rechorus-workflow.md) 在默认 top-100 展示导出之前保存原候选矩阵，明确正例列与同分规则，避免从有损 CSV 猜测缺失信息。
+使用 ReChorus 时，可按 [runner 捕获指南](docs/rechorus-workflow.md) 在默认 top-100 展示导出之前保存 sampled 候选，或按明确原因导出基础 full-sort 输入约定下的有效分数。跨 run 比较可显式保留事件与物品 ID；未知标签保持未知。
 
 ## 快速开始
 

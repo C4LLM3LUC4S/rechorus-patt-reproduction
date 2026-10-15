@@ -47,6 +47,8 @@ The exporter writes CSV and `<output>.metadata.json`. Metadata records a source 
 Source archives are read only. To keep local experiments private, store exports and reports outside the repository or under an ignored directory. Public examples in this repository are synthetic. Real experiment validation should publish only reviewed aggregate observations with clear data-use permission.
 
 The official ReChorus TopK presentation CSV is a different, lossy format. The [sampled runner capture recipe](rechorus-workflow.md) shows where to create this NPZ bridge before sorting/truncation, and explains positive-column and tie assumptions. It does not recover missing target/event information from a previously saved top-k CSV.
+
+For the standard base ReChorus full-sort dev/test contract, use the [separate masked-score helper](rechorus-workflow.md#export-the-checked-base-full-sort-contract). It retains the observed target at column zero, records overlapping train/residual/target-copy exclusions and requires stable event IDs. Raw full-sort NPZ remains outside the sampled NPZ exporter's contract. ReChorus and RecBole have different column-zero meanings; their helpers are not interchangeable.
 ## TREC run compatibility
 
 An explicit [TREC normalization helper](trec-normalization.md) handles the trailing run fields allowed by trec_eval. It creates a validated new file, refuses overwrites, and prints source/output hashes. The documented NIST case records the actual import obstacle and the query-coverage difference that becomes inspectable after conversion. This helper requires an installed RankProbe and the source checkout; it is not a new installed CLI subcommand.
