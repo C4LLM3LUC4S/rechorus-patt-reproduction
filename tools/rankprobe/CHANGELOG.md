@@ -2,6 +2,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Restricted branch-push CI to `main` while retaining PR, tag and declared manual triggers, avoiding duplicate ten-job suites for feature PR updates. The validation matrix and job contents are unchanged; feature branches without PRs no longer start checks automatically.
 - Clarified how to retain sampled-negative assumptions in audit reports: keep unknown labels in the exported CSV, then explicitly declare the audit policy when the source protocol supports it. Materialized zero labels and the exporter's separate metadata are distinguished from report-recorded assumptions.
 - Added a separately scoped pinned-reference exp2 NDCG case for original integer grades 0–3. Only an oracle qrels copy receives the gain mapping; 12 per-query/macro comparisons supplement the existing linear checks and preserve the original inputs.
 - Added a report-local explanation when a perfect metric value covers only a subset of submitted queries. The hint uses exact values and valid eligibility counts, without changing JSON, labels, metrics or finding severity.

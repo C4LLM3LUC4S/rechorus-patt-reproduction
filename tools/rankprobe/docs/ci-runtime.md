@@ -1,5 +1,28 @@
 # CI action runtime and pins
 
+## Trigger scope
+
+The workflow runs for pull requests and pushes to `main`. Tag pushes remain
+enabled, and `workflow_dispatch` remains declared. Feature-branch pushes rely
+on an open pull request for automatic checks; a branch without one is not
+checked automatically. Forks using a different default branch should update
+the push branch filter.
+
+This avoids two identical suites for one PR update. For head `8fa6e1d`, the
+[push run](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/actions/runs/38772446978)
+and [pull-request run](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/actions/runs/38772455947)
+each completed the same ten jobs. The filter removes duplicate starts; it does
+not establish a measured reduction in runtime or cost.
+
+GitHub applies `pull_request` branch filters to the target branch; this workflow
+leaves PRs unfiltered. Fork contributions remain subject to repository approval
+settings. Manual dispatch requires the workflow to exist on the default branch;
+keeping the declaration in an unmerged draft does not make manual execution
+available there. See GitHub's [push branch and tag filters](https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#onpushbranchestagsbranches-ignoretags-ignore)
+and [manual trigger requirements](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#workflow_dispatch).
+
+## Action runtime and pins
+
 The CI workflow uses full commit references for these JavaScript actions:
 
 | Action | Release | Commit |
