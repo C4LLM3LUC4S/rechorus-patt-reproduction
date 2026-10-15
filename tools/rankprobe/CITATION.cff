@@ -6,7 +6,7 @@ authors:
   - given-names: "Borui"
     family-names: "Ma"
     alias: "C4LLM3LUC4S"
-version: 0.1.0a2
+version: 0.1.0a3
 abstract: >-
   A local tool for inspecting candidate-score ties, duplicated items, relevance
   coverage, and run comparability in exported ranking evaluations. The software

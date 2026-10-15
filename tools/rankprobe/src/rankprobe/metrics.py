@@ -172,10 +172,18 @@ def _ndcg(relevances: list[float], ideal_relevances: list[float], cutoff: int, g
         def gains(rel: float) -> float:
             return rel / largest
     elif largest < 512:
-        denominator = math.expm1(largest * math.log(2))
+        # expm1(x) / x approaches 1 at zero. Take the relevance ratio first:
+        # multiplying subnormal relevance by log(2) can otherwise round two
+        # distinct grades to the same gain before their ratio is calculated.
+        log_two = math.log(2)
+
+        def expm1_ratio(value: float) -> float:
+            return math.expm1(value) / value if value else 1.0
+
+        denominator = expm1_ratio(largest * log_two)
 
         def gains(rel: float) -> float:
-            return math.expm1(rel * math.log(2)) / denominator
+            return (rel / largest) * (expm1_ratio(rel * log_two) / denominator)
     else:
         baseline = 2.0 ** (-largest)
 
@@ -287,6 +295,7 @@ def _evaluate_rankings(
             "total_queries": total,
             "excluded_queries": total - len(values),
             "eligible_query_ids": sorted(eligible_queries[key]),
+            "excluded_query_ids": sorted(set(rankings) - set(eligible_queries[key])),
             "query_universe": "submitted_prediction_queries",
             "qrels_only_queries": len(qrels_only),
             "reference": reference,

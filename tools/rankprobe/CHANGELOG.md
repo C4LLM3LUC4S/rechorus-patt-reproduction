@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0a3 — readable comparisons and numerical stability
+
+- Fixed HTML metric-delta tables that omitted the actual delta value.
+- Added side-by-side submitted and matched-pool comparison results with metric coverage, reference scope, and JSON locations.
+- Exposed bounded metric-coverage details and practical next steps for common findings.
+- Recorded the exact excluded prediction-query IDs for each metric so coverage problems can be located without reconstructing the eligible set.
+- Corrected exponential NDCG gain ratios at extremely small finite relevance values without changing the declared gain function.
+
+The report improvements change presentation, not which queries are eligible or which metric deltas are permitted. The numerical correction applies to the finite-number input contract; it does not establish new benchmark results.
+
 ## 0.1.0a2 — retrieval input and judgment coverage
 
 - Direct six-column TREC run and four-column qrels input, with explicit format overrides for ambiguous file names.

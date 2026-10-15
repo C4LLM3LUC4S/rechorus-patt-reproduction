@@ -34,6 +34,8 @@ The scope is part of the result:
 
 When ideal DCG is zero, the query contributes zero by this implementation's declared convention. No relevant judged item is different from an unjudged query. Inspect coverage and warnings before interpreting either.
 
+Gain calculations use scaled ratios to avoid overflow and cancellation. For very small exponential gains, the stable `expm1(x) / x` ratio preserves distinct finite grades, including subnormal values. This is a numerical implementation of the declared gain function, not a change in relevance meaning or a benchmark claim.
+
 ## Recall@k
 
 Recall uses the number of distinct relevant items retrieved in the top k divided by the number of relevant items in the independent qrels. It is reported only when `--qrels-complete` explicitly declares a complete denominator for the evaluated queries. That flag is not a measured fact.

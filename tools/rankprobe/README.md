@@ -33,6 +33,8 @@ python -m rankprobe compare --run baseline=examples/clean.csv --run changed=exam
 
 Reports are written to the selected output directory; existing report files are refused unless `--overwrite` is explicit. `report.json` is intended for programmatic inspection; `report.html` is self-contained and can be opened offline. Reports include input identifiers and example rows, so review them before sharing.
 
+In a comparison, start with **Comparison results**: submitted-run values sit beside matched-pool values and the right-minus-left delta. Each value shows its coverage and reference scope. Expand coverage details to see which queries were excluded, then follow the relevant finding's suggested next step. A displayed delta is an arithmetic difference under the stated protocol, not a significance test.
+
 ## What it checks
 
 | Question | Evidence in the report |
@@ -96,12 +98,13 @@ RankProbe is an independent evaluator, not a compatibility wrapper for MTEB, Rec
 ```sh
 python -m pip install -e ".[dev,adapters]"
 python -m pytest
+python -m ruff check .
 python -m build
 ```
 
 The CI configuration targets Python 3.10, 3.12, and 3.13 on Ubuntu and Windows. A configuration file alone is not evidence that those remote jobs passed; inspect the workflow runs for the checked commit.
 
-This is an early `0.1.0a2` implementation. The [verification record](docs/verification.md) distinguishes executed checks from pending evidence. There are no claimed external adopters, revenue, benchmark certification, or published research results. [The validation plan](docs/validation-plan.md) and [roadmap](docs/roadmap.md) describe what would establish practical value. Contributions should add an independently checkable example and document changed semantics. Please report problems with a small synthetic input instead of uploading private data.
+This is an early `0.1.0a3` implementation. The [verification record](docs/verification.md) distinguishes executed checks from pending evidence. There are no claimed external adopters, revenue, benchmark certification, or published research results. [The validation plan](docs/validation-plan.md) and [roadmap](docs/roadmap.md) describe what would establish practical value. Contributions should add an independently checkable example and document changed semantics. Please report problems with a small synthetic input instead of uploading private data.
 
 ## License and citation
 

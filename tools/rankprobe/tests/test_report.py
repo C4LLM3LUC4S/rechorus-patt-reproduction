@@ -1,11 +1,56 @@
 import json
+from html.parser import HTMLParser
 import os
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
+from rankprobe.audit import audit_run, compare_runs
+from rankprobe.model import Protocol, Row
 from rankprobe.report import render_html, write_report
+
+
+class ReportTables(HTMLParser):
+    """Read visible table cells without depending on the report's markup layout."""
+
+    def __init__(self, source):
+        super().__init__()
+        self.tables = []
+        self.ids = set()
+        self.links = []
+        self.rows = None
+        self.row = None
+        self.cell = None
+        self.feed(source)
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if "id" in attrs:
+            self.ids.add(attrs["id"])
+        if tag == "a":
+            self.links.append(attrs.get("href", ""))
+        if tag == "table":
+            self.rows = []
+        elif tag == "tr":
+            self.row = []
+        elif tag in {"th", "td"}:
+            self.cell = []
+
+    def handle_data(self, data):
+        if self.cell is not None:
+            self.cell.append(data)
+
+    def handle_endtag(self, tag):
+        if tag in {"th", "td"} and self.cell is not None:
+            self.row.append("".join(self.cell))
+            self.cell = None
+        elif tag == "tr" and self.row is not None:
+            self.rows.append(self.row)
+            self.row = None
+        elif tag == "table" and self.rows is not None:
+            self.tables.append(self.rows)
+            self.rows = None
 
 
 def sample_report():
@@ -39,6 +84,95 @@ def sample_report():
 
 
 class ReportTests(unittest.TestCase):
+    def test_actual_comparison_exposes_positive_and_negative_matched_deltas(self):
+        runs = {
+            "baseline": [Row("q1", "b", 3, 0), Row("q1", "a", 2, 1), Row("q1", "c", 1, 0)],
+            "better": [Row("q1", "a", 3, 1), Row("q1", "b", 2, 0), Row("q1", "c", 1, 0)],
+            "worse": [Row("q1", "b", 3, 0), Row("q1", "c", 2, 0), Row("q1", "a", 1, 1)],
+        }
+        report = compare_runs(runs, Protocol(cutoffs=(2,)))
+        result = render_html(report)
+        tables = [table for table in ReportTables(result).tables if "Submitted left" in table[0]]
+        self.assertEqual(len(tables), 3)
+        rows = [{row[0]: row for row in table[1:]} for table in tables]
+        self.assertEqual(report["pairs"][0]["matched_pool_comparison"]["delta_right_minus_left"]["mrr@2"]["delta"], 0.5)
+        self.assertTrue(rows[0]["mrr@2"][-1].startswith("+0.5\n"))
+        self.assertTrue(rows[1]["mrr@2"][-1].startswith("-0.5\n"))
+        self.assertIn("status: partial", rows[0]["ndcg@2"][1])
+        self.assertIn("reference: candidate_pool", rows[0]["ndcg@2"][3])
+        self.assertIn("metric-eligible queries: 1 / 1", rows[0]["mrr@2"][3])
+        self.assertIn("not a full-run improvement", result)
+        self.assertIn('href="#pairs">Comparison results</a>', result)
+        self.assertLess(result.index('id="pairs"'), result.index('id="findings"'))
+
+    def test_comparison_separates_submitted_and_metric_eligible_populations(self):
+        rows = [
+            Row("q1", "a", 2, 0), Row("q1", "b", 1, 1),
+            Row("q2", "c", 2, 0), Row("q2", "d", 1, 0),
+            Row("q3", "e", 2), Row("q3", "f", 1, 1),
+        ]
+        report = compare_runs({"baseline": rows, "subset": rows[:2] + rows[4:]}, Protocol(cutoffs=(2,)))
+        result = render_html(report)
+        table = next(table for table in ReportTables(result).tables if "Submitted left" in table[0])
+        mrr = next(row for row in table[1:] if row[0] == "mrr@2")
+        self.assertTrue(mrr[1].startswith("0.25\n"))
+        self.assertTrue(mrr[2].startswith("0.5\n"))
+        self.assertTrue(mrr[3].startswith("0.5\n"))
+        self.assertTrue(mrr[4].startswith("0.5\n"))
+        self.assertTrue(mrr[5].startswith("+0\n"))
+        self.assertIn("Structurally matched queries: 2", result)
+        self.assertIn("metric-eligible queries: 1 / 2", mrr[3])
+        self.assertIn("Unknown top k judgment", result)
+        self.assertIn("Eligible query ids", result)
+        self.assertIn("pairs[0].matched_pool_comparison.left_metrics", result)
+        self.assertIn("Restore omitted predictions", result)
+        self.assertIn("JSON: findings[", result)
+
+    def test_actual_duplicate_diagnostic_retains_delta_column(self):
+        report = audit_run(
+            [Row("q1", "a", 3, 0), Row("q1", "a", 2, 0), Row("q1", "b", 1, 1)],
+            Protocol(cutoffs=(2,)),
+        )
+        self.assertEqual(report["duplicates"]["metric_sensitivity"]["delta_raw_minus_deduplicated"]["mrr@2"]["delta"], -0.5)
+        tables = ReportTables(render_html(report)).tables
+        visible_mrr_deltas = [
+            row[table[0].index("Delta")]
+            for table in tables if "Delta" in table[0]
+            for row in table[1:] if row[0] == "mrr@2"
+        ]
+        self.assertIn("-0.5", visible_mrr_deltas)
+
+    def test_coverage_details_are_bounded_and_run_names_escaped(self):
+        rows = [Row(f"coverage-id-{index:03d}", "a", 1, 1) for index in range(65)]
+        report = compare_runs({"<svg/onload=alert(1)>": rows, "other": rows}, Protocol(cutoffs=(1,)))
+        result = render_html(report)
+        self.assertNotIn("<svg", result)
+        self.assertIn("&lt;svg/onload=alert(1)&gt;", result)
+        self.assertIn("Showing 20 of 65 entries", result)
+        self.assertIn("coverage-id-019", result)
+        # Identifiers remain bounded even inside folded pair scope lists.
+        self.assertNotIn("coverage-id-064", result)
+        self.assertIn("overflow-wrap:anywhere", result)
+
+    def test_partial_reports_and_finding_links_keep_working_without_optional_sections(self):
+        reports = [
+            audit_run([Row("q1", "a", 1, 1), Row("q1", "b", 1, 0)], Protocol(cutoffs=(1,))),
+            {
+                "report_type": "compare",
+                "pairs": [{"left": "x", "right": "y", "custom_evidence": {"note": "retained detail"}}],
+                "findings": [{"code": "unknown_judgments", "severity": "warning"}],
+            },
+        ]
+        for report in reports:
+            with self.subTest(report_type=report["report_type"]):
+                result = render_html(report)
+                parsed = ReportTables(result)
+                for link in parsed.links:
+                    if link.startswith("#"):
+                        self.assertIn(link[1:], parsed.ids)
+                self.assertIn("Next step:", result)
+        self.assertIn("retained detail", render_html(reports[1]))
+
     def test_escapes_untrusted_identifiers_and_messages(self):
         result = render_html(sample_report())
         self.assertNotIn("<script>", result)

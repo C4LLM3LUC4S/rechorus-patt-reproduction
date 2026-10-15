@@ -25,7 +25,7 @@ If PowerShell blocks activation, use `.\.venv\Scripts\python.exe` in place of `p
 python -m rankprobe compare --run baseline=examples/trec/baseline.run --run reordered=examples/trec/reordered.run --qrels examples/trec/judgments.qrels --cutoffs 1,2 --out reports/first-try
 ```
 
-Open `reports/first-try/report.html` in a browser. All demonstration records are invented. Baseline MRR@2 is 0.25 and reordered MRR@2 is 0.5, but both are 0.5 on the matched, metric-eligible query. Find the query coverage warning and excluded-query details. [The walkthrough](../examples/trec/README.md) explains every expected value.
+Open `reports/first-try/report.html` and start at **Comparison results**. All demonstration records are invented. Baseline MRR@2 is 0.25 and reordered MRR@2 is 0.5, but both are 0.5 on the matched, metric-eligible query, so the matched delta is zero. The table shows the sample count and scope beside each value. Follow the query coverage finding's next step and expand the metric coverage to inspect excluded queries. [The walkthrough](../examples/trec/README.md) explains every expected value.
 
 If you only have one export, use `audit`; use `compare` when two runs should represent the same evaluation task.
 

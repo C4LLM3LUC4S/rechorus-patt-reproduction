@@ -1,5 +1,17 @@
 # Verification record
 
+## Comparison report alpha (`0.1.0a3`, 2026-10-15)
+
+The local Windows / Python 3.12.5 suite passed **170 tests and 12 subtests**, with one symbolic-link-loop test skipped because Windows symlink privileges are unavailable. Ruff passed. The CLI integration check was updated to the new comparison headings.
+
+An independent, read-only report review checked ten scenarios against the core JSON: both TREC tie policies, positive and negative deltas, changing metric eligibility, no matched pool, escaped long identifiers, and ID/pair/metric display limits. The report preserved the distinction between two structurally matched queries and one metric-eligible query in the synthetic retrieval case. Deltas unsupported by matching eligibility or reference scope remained unavailable. These agent checks are software verification, not evidence of independent human adoption.
+
+The review first reproduced an HTML defect: delta tables omitted the actual delta column. The new Comparison results section places submitted and matched results side by side, displays the numerical delta, and retains each metric's coverage and reference. Coverage details now include exact excluded prediction-query IDs in JSON, bounded in HTML; qrels-only queries remain a separate population. Finding cards provide specific next steps and valid local navigation.
+
+A separate numerical review reproduced exp2 NDCG@1 = 1 for a reversed ordering of the distinct grades `5e-324` and `1e-323`. Stable gain ratios correct this to 0.5, matching a 420-digit Decimal oracle; the corresponding matched-pool delta is 0.5 instead of zero. Regression checks also cover tiny normal grades, ordinary graded relevance, values near the scaling branch boundary, and a large dynamic range. No new runtime dependency was introduced.
+
+The generated retrieval report was visually inspected at desktop and a 390px viewport. Page content did not overflow horizontally (desktop content width 1265px, mobile content width 375px with its scrollbar). Wide tables scroll inside their container; focusing the comparison table and pressing the right arrow moved its horizontal scroll position by 40px. The temporary viewport override was reset. Lint is now included in the cross-platform CI workflow; inspect the current PR commit's runs for remote results.
+
 ## Retrieval alpha (`0.1.0a2`, 2026-10-15)
 
 The updated local suite passed **155 tests and 10 subtests** on Windows / Python 3.12.5; Ruff passed. One symbolic-link-loop test was skipped because this Windows session lacks symlink creation privileges. These include TREC format errors, preserved identifiers and file order, explicit format overrides, unknown-only qrels, inline-label resolution, rejected contradictory completeness assertions, cross-run coverage, source provenance, and input/output collisions.

@@ -135,8 +135,8 @@ class CliTests(unittest.TestCase):
             report = json.loads((folder / "out" / "report.json").read_text(encoding="utf-8"))
             self.assertEqual(report["pairs"][0]["status"], "comparable")
             html = (folder / "out" / "report.html").read_text(encoding="utf-8")
-            self.assertIn("Pairwise comparability", html)
-            self.assertIn("Matched pool comparison", html)
+            self.assertIn("Comparison results", html)
+            self.assertIn("Matched delta right minus left", html)
 
     def test_compare_requires_two_runs(self):
         with tempfile.TemporaryDirectory() as directory:

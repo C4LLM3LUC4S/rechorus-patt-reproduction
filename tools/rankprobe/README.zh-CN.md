@@ -32,6 +32,8 @@ python -m rankprobe compare --run baseline=examples/clean.csv --run changed=exam
 
 报告包括输入标识符与部分样例，分享前需自行检查是否包含私人信息。
 
+比较报告可先看 **Comparison results**：原始运行指标、匹配集合上的指标与右减左差值并排显示，每个值都附带覆盖范围和参考池。展开覆盖明细能看到排除了哪些查询，再按发现卡片中的建议检查原因。差值表示指定协议下的数值差异，不表示统计显著性。
+
 ## 解决什么问题
 
 - **同分敏感性：**定位完全相同的候选分数，比较输入顺序与确定排序，计算允许同分候选换序时的指标范围。
@@ -90,11 +92,12 @@ RankProbe 不保证与任意框架输出相同。默认同分规则是物品 ID 
 
 ## 当前阶段
 
-这是早期 `0.1.0a2` 实现，已执行的检查见 [验证记录](docs/verification.md)，尚无外部采用、收入或论文成果的证据。下一步按 [试用计划](docs/validation-plan.md) 和 [路线图](docs/roadmap.md) 验证陌生用户能否独立使用并获得实际帮助，再决定扩展方向。CI 覆盖多个 Python 版本及 Windows/Ubuntu，是否实际通过需查看对应提交的运行记录。
+这是早期 `0.1.0a3` 实现，已执行的检查见 [验证记录](docs/verification.md)，尚无外部采用、收入或论文成果的证据。下一步按 [试用计划](docs/validation-plan.md) 和 [路线图](docs/roadmap.md) 验证陌生用户能否独立使用并获得实际帮助，再决定扩展方向。CI 覆盖多个 Python 版本及 Windows/Ubuntu，是否实际通过需查看对应提交的运行记录。
 
 ```sh
 python -m pip install -e ".[dev,adapters]"
 python -m pytest
+python -m ruff check .
 python -m build
 ```
 
