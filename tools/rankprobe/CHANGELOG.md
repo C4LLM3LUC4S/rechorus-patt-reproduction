@@ -2,6 +2,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Added a report-local explanation when a perfect metric value covers only a subset of submitted queries. The hint uses exact values and valid eligibility counts, without changing JSON, labels, metrics or finding severity.
 - Explained why positive-only judgments can produce conditional MRR@1 = 1 with incomplete query coverage, using a four-row original example. Excluded queries stay unknown; the metric and eligibility rules are unchanged.
 - Corrected the first NPZ recipes to preserve undeclared labels instead of preselecting nonrelevant candidates. English/Chinese entry points now offer a public source ZIP, explicit virtual-environment interpreters, and a documented framework-export/core-audit handoff. No metric or default exporter policy changed.
 - Pinned the three CI actions to reviewed Node24 commits, replacing Node20-targeted actions that were forced onto Node24. All checkouts disable credential persistence; the existing validation matrix and artifact ZIP settings are retained. See `docs/ci-runtime.md` for scope and acceptance.

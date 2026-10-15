@@ -190,6 +190,64 @@ class ReportTests(unittest.TestCase):
         self.assertIn("partial", result)
         self.assertIn("A missing value is not zero", result)
 
+    def test_perfect_partial_metric_context_is_visible_only_in_main_metrics(self):
+        rows = [
+            Row("positive_first", "positive", 0.9, 1),
+            Row("positive_first", "unjudged", 0.2),
+            Row("unknown_first", "unjudged", 0.9),
+            Row("unknown_first", "positive", 0.2, 1),
+        ]
+        report = audit_run(rows, Protocol(cutoffs=(1,)))
+        before = json.dumps(report, sort_keys=True)
+        result = render_html(report)
+        context = "mrr@1 = 1 is the average over 1 eligible query out of 2 submitted queries."
+        self.assertEqual(result.count(context), 1)
+        self.assertIn("perfect results across all submitted queries", result)
+        self.assertIn("See coverage details for exclusion reasons", result)
+        self.assertLess(result.index('id="metrics"'), result.index(context))
+        self.assertLess(result.index(context), result.index('id="tie_analysis"'))
+        self.assertEqual(json.dumps(report, sort_keys=True), before)
+        metrics = report["metrics"]
+        self.assertEqual(metrics["mrr@1"]["excluded_query_ids"], ["unknown_first"])
+        self.assertIsNone(metrics["ndcg@1"]["value"])
+        self.assertIsNone(metrics["recall@1"]["value"])
+
+    def test_partial_perfect_context_requires_partial_query_coverage_and_exact_one(self):
+        full_coverage = audit_run(
+            [Row("q", "positive", 2, 1), Row("q", "negative", 1, 0)],
+            Protocol(cutoffs=(1,)),
+        )
+        self.assertEqual(full_coverage["metrics"]["ndcg@1"]["value"], 1)
+        self.assertEqual(full_coverage["metrics"]["ndcg@1"]["status"], "partial")
+        self.assertEqual(full_coverage["metrics"]["ndcg@1"]["reference"], "candidate_pool")
+        nonperfect = audit_run(
+            [Row("known", "negative", 2, 0), Row("known", "positive", 1, 1),
+             Row("unknown", "unjudged", 1)],
+            Protocol(cutoffs=(2,)),
+        )
+        self.assertEqual(nonperfect["metrics"]["mrr@2"]["value"], 0.5)
+        self.assertEqual(nonperfect["metrics"]["mrr@2"]["status"], "partial")
+        unavailable = audit_run([Row("q", "unjudged", 1)], Protocol(cutoffs=(1,)))
+        self.assertIsNone(unavailable["metrics"]["mrr@1"]["value"])
+        near_one = {
+            "metrics": {
+                "mrr@1": {
+                    **nonperfect["metrics"]["mrr@2"],
+                    "value": 0.9999999,
+                }
+            }
+        }
+        rendered_near_one = ReportTables(render_html(near_one)).tables[0]
+        self.assertEqual(rendered_near_one[1][rendered_near_one[0].index("Value")], "1")
+        for name, report in (
+            ("full coverage with candidate-pool partial", full_coverage),
+            ("nonperfect", nonperfect),
+            ("unavailable", unavailable),
+            ("rounded to one", near_one),
+        ):
+            with self.subTest(case=name):
+                self.assertNotIn("perfect results across all submitted queries", render_html(report))
+
     def test_bounded_evidence_and_native_keyboard_controls(self):
         report = sample_report()
         report["findings"][0]["evidence"] = [{"query_id": f"unique-query-{i}"} for i in range(40)]

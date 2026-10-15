@@ -7,6 +7,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import tempfile
 from typing import Any, Mapping
 
@@ -141,6 +142,39 @@ def _metrics(value: Any, json_path: str | None = None) -> str:
                 )
         return note + _table(records) + "".join(details)
     return _content(value)
+
+
+def _partial_perfect_context(value: Any) -> str:
+    if not isinstance(value, Mapping):
+        return ""
+    notes = []
+    for name, metric in list(value.items())[:TABLE_LIMIT]:
+        if not (
+            isinstance(name, str)
+            and re.fullmatch(r"(?:mrr|ndcg|recall)@[1-9][0-9]*", name)
+            and isinstance(metric, Mapping)
+        ):
+            continue
+        score = metric.get("value")
+        evaluated, total = metric.get("evaluated_queries"), metric.get("total_queries")
+        if (
+            metric.get("status") == "partial"
+            and isinstance(score, (int, float))
+            and not isinstance(score, bool)
+            and score == 1
+            and type(evaluated) is int
+            and type(total) is int
+            and 0 < evaluated < total
+        ):
+            query_word = "query" if evaluated == 1 else "queries"
+            notes.append(
+                f'<p class="muted">{_esc(name)} = 1 is the average over '
+                f'{_esc(evaluated)} eligible {query_word} out of {_esc(total)} submitted queries. '
+                'Excluded queries are not included in this average, so the value does not establish '
+                'perfect results across all submitted queries. See coverage details for exclusion '
+                'reasons.</p>'
+            )
+    return "".join(notes)
 
 
 def _metric_cell(metric: Any, *, delta: bool = False) -> str:
@@ -349,7 +383,7 @@ def render_html(report: Mapping[str, Any]) -> str:
     ):
         if key in report and report[key]:
             if key == "metrics":
-                rendered = _metrics(report[key], "metrics")
+                rendered = _partial_perfect_context(report[key]) + _metrics(report[key], "metrics")
             elif key == "pairs":
                 rendered = _pairwise_results(report)
             elif key == "runs":

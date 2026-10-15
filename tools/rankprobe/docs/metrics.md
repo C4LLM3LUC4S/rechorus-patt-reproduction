@@ -25,7 +25,7 @@ Under `unjudged=unknown`, a query is excluded whenever any candidate within top 
 
 ### Positive-only labels
 
-When the only known judgments are relevant positives, default MRR@1 eligibility selects queries whose first item is a known positive. If that subset is nonempty, its MRR@1 is necessarily 1. Unknown-first queries are excluded, so this does not mean the whole run ranked perfectly. In the [four-row synthetic example](../examples/README.md), MRR@1 is 1.0 with `partial` status and only 1 of 2 queries eligible; NDCG@1 and Recall@1 are unavailable. Read the value together with its coverage. Do not turn excluded queries into zeros or call the eligible fraction HitRate.
+When the only known judgments are relevant positives, default MRR@1 eligibility selects queries whose first item is a known positive. If that subset is nonempty, its MRR@1 is necessarily 1. Unknown-first queries are excluded, so this does not mean the whole run ranked perfectly. In the [four-row synthetic example](../examples/README.md), MRR@1 is 1.0 with `partial` status and only 1 of 2 queries eligible; NDCG@1 and Recall@1 are unavailable. Read the value together with its coverage. Do not turn excluded queries into zeros or call the eligible fraction HitRate. Standalone audit reports place a coverage reminder beside an exactly perfect metric when only a subset of submitted queries is eligible.
 
 ## NDCG@k
 
