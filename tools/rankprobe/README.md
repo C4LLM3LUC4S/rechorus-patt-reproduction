@@ -91,7 +91,7 @@ python -m rankprobe audit local_export.csv --out reports/local-export
 
 The adapter has an explicit one-positive-column assumption. It remaps item IDs, omits user IDs, and treats each matrix row as a distinct query. Read [adapter assumptions](docs/adapters.md) before comparing exports. Synthetic fixtures are included; private predictions, MovieLens data, and third-party code are not redistributed.
 
-RankProbe is an independent evaluator, not a compatibility wrapper for MTEB, RecBole, or ReChorus. Tie rules and metric definitions can differ. For example, its default `item_id` tie rule is ascending string order, whereas `trec_eval` uses a different convention. See [known public context](docs/known-cases.md).
+RankProbe is an independent evaluator, not a compatibility wrapper for MTEB, RecBole, or ReChorus. Tie rules and metric definitions can differ. For example, its default `item_id` tie rule is ascending string order, whereas `trec_eval` uses a different convention. See [known public context](docs/known-cases.md) and the [reproducible trec_eval cross-check](docs/trec-reference.md) to distinguish shared-protocol agreement from expected differences.
 
 ## Development
 

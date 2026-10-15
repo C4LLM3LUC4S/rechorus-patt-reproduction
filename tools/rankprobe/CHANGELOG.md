@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased — installation verification and explicit input conversion
+## Unreleased — installation, explicit input conversion and reference checks
 
 - Added an isolated built-wheel gate to the existing cross-platform CI matrix.
 - The gate installs only the specified local wheel, verifies the installed package location and versions, and exercises the real module/console entry points plus a synthetic retrieval comparison outside the checkout.
 - Runtime code, metric definitions, and the `0.1.0a3` package version are unchanged by this CI improvement.
 - Added an explicit source-checkout TREC normalization helper for runs with expendable trailing fields, with validation before creating a new file and source/output hashes. Strict core imports and all judgment policies remain unchanged.
+- Added a pinned trec_eval reference job and an executable checker for shared-protocol MRR/NDCG/Recall, with separate probes documenting expected judgment, tie and averaging differences. Core metric definitions remain unchanged.
 
 ## 0.1.0a3 — readable comparisons and numerical stability
 

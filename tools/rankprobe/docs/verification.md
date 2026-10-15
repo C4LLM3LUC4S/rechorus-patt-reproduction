@@ -1,5 +1,11 @@
 # Verification record
 
+## Executable trec_eval reference gate (unchanged `0.1.0a3` core)
+
+Earlier NIST input checks did not execute the reference evaluator, so numerical agreement remained unverified. The new standard-library checker invokes an explicitly supplied executable on 4 fixed and 20 seeded original cases at cutoffs 1/2/5/10. It checks each query and the macro result for MRR, linear NDCG and Recall under a fully judged shared synthetic protocol. Four separate probes assert expected differences in ties, unknown labels, zero-positive Recall queries and qrels-only query handling. The [reproduction guide](trec-reference.md) states the exact protocol, reference source and four-decimal output tolerance.
+
+The new 14 checker tests passed locally on Windows / Python 3.12.5, including malformed/duplicate/nonfinite reference output, original case preconditions, a constant-zero engine with valid output keys that must fail numerically, summary preservation and a path-free missing-executable error. Ruff and diff whitespace checks passed. The core evaluator and previous suites were not rerun locally because their code is unchanged. This machine has no usable C compiler/WSL environment; actual reference execution belongs to the new Ubuntu CI job, which checksum-verifies pinned NIST source, builds it and runs its quicktest before the cross-check. Inspect the current commit's workflow for the actual result; configuring this job alone is not execution evidence.
+
 ## Explicit trailing-field conversion (unchanged `0.1.0a3` core)
 
 The previous real-input check stopped at a documented compatibility boundary: NIST's `test/results.trunc` has legal trailing run fields which the strict RankProbe loader rejects. The upstream format specification and quicktest confirmed that this is intended input. A new explicit source-checkout helper validates a separate six-field copy before creating the destination, refuses existing outputs/source aliases, and reports original/output hashes. It does not relax core parsing or add judgments. See [the case and commands](trec-normalization.md).

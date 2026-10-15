@@ -11,6 +11,8 @@ RankProbe aims to help people explain why exported ranking results change. The n
 
 Until the independent-use gate has evidence, prioritise correctness, clear reports, supported formats, and installation. New metrics, a hosted dashboard, model training, accounts, or billing need an observed reason to exist. A public CLI can remain useful without a cloud service.
 
+Independent-use evidence and engineering work can progress in parallel. A lack of new feedback does not close the project: known gaps such as an unexecuted independent metric reference or a demonstrated export barrier can be addressed without outreach. The [trec_eval cross-check](trec-reference.md) is one bounded example. Keep each step tied to a named obstacle and an observable acceptance result; avoid rerunning completed checks or adding speculative features.
+
 For the software to support a portfolio or later research work, keep the record auditable: associate an issue with a minimal example, document the semantic change, review the diff, and link the exact passing CI run. A synthetic diagnostic demonstrates behavior; it is not a benchmark result or a paper contribution by itself.
 
 Possible revenue experiments should start only if a repeated need emerges, such as support integrating audits into a team's evaluation pipeline. Record willingness to pay separately from polite feedback. Neither this roadmap nor a working package establishes demand, income, or an admission advantage.

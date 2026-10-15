@@ -88,7 +88,7 @@ python -m rankprobe audit local_export.csv --out reports/local-export
 
 每个矩阵行单独成为一个查询；用户标识不导出，物品标识被替换。导出假设、隐私边界与跨文件对齐限制见 [适配器说明](docs/adapters.md)。公开示例均为原创合成数据，不分发私人预测、MovieLens 数据或第三方代码。
 
-RankProbe 不保证与任意框架输出相同。默认同分规则是物品 ID 字符串升序，与 `trec_eval` 的规则不同。已有公共问题只用作背景，不声称发现了新漏洞或替代上游修复，见 [案例来源](docs/known-cases.md)。
+RankProbe 不保证与任意框架输出相同。默认同分规则是物品 ID 字符串升序，与 `trec_eval` 的规则不同。已有公共问题只用作背景，不声称发现了新漏洞或替代上游修复，见 [案例来源](docs/known-cases.md)。新增的 [trec_eval 独立交叉验证](docs/trec-reference.md) 提供可复现检查：共同协议下核对数值，协议不同时保留并解释差异，不能为了对齐结果而随意补零或宣称标签完整。
 
 ## 当前阶段
 
