@@ -21,8 +21,10 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python }}
       - name: Locate package
@@ -67,10 +69,10 @@ jobs:
       REFERENCE_COMMIT: ba38899cbd4de0fb699b47f39b64ef1c107e4a5c
       REFERENCE_SHA256: d603cd657950aebea3a5ed08cee5ea0e5e836012ed5eb63303d3a7d66e49ba6a
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
       - name: Locate package
@@ -111,7 +113,7 @@ jobs:
         run: python scripts/check_trec_eval.py --trec-eval "${{ steps.reference.outputs.source }}/trec_eval" --summary "$RUNNER_TEMP/rankprobe-reference-result.json"
       - name: Save reference check summary
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: trec-eval-reference
           path: ${{ runner.temp }}/rankprobe-reference-result.json
@@ -130,10 +132,10 @@ jobs:
       BEIR_COMMIT: ef83d29307061c65d04b035b4f4e7c18bd8374af
       BEIR_SHA256: 93be775e8bb6c857883e77e3a3a01f4748e6498a341fc436416b547e35d5a75b
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
       - name: Locate package
@@ -181,7 +183,7 @@ jobs:
         run: python scripts/check_beir_workflow.py --out "$RUNNER_TEMP/rankprobe-beir-workflow"
       - name: Save original synthetic integration example and reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: beir-workflow-example
           path: ${{ runner.temp }}/rankprobe-beir-workflow
@@ -200,10 +202,10 @@ jobs:
       RECBOLE_COMMIT: 7b02be5ec80a88310f2d04a27a82adfcbb5dc211
       RECBOLE_SHA256: dcd778a920773821e0e1816d06735c79413f2f44a470eab9b119b1435d9c74da
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
       - name: Locate package
@@ -246,7 +248,7 @@ jobs:
         run: python scripts/check_recbole_workflow.py --out "$RUNNER_TEMP/rankprobe-recbole-workflow"
       - name: Save original synthetic integration example and reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: recbole-workflow-example
           path: ${{ runner.temp }}/rankprobe-recbole-workflow
@@ -265,10 +267,10 @@ jobs:
       RECHORUS_COMMIT: c164ec4303cc20ddcfbd1b57de366a481811d1e5
       RECHORUS_SHA256: 0e66340a9d496ca6277ded4f6f0b51f92bf739eba4f26a14d1e8a26cb0c75cd1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
       - name: Locate package
@@ -305,7 +307,7 @@ jobs:
         run: python scripts/check_rechorus_workflow.py --source "${{ steps.upstream.outputs.source }}" --out "$RUNNER_TEMP/rankprobe-rechorus-workflow"
       - name: Save original synthetic integration example and reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rechorus-workflow-example
           path: ${{ runner.temp }}/rankprobe-rechorus-workflow

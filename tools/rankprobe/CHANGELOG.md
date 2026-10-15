@@ -2,6 +2,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Pinned the three CI actions to reviewed Node24 commits, replacing Node20-targeted actions that were forced onto Node24. All checkouts disable credential persistence; the existing validation matrix and artifact ZIP settings are retained. See `docs/ci-runtime.md` for scope and acceptance.
 - Added an isolated built-wheel gate to the existing cross-platform CI matrix.
 - The gate installs only the specified local wheel, verifies the installed package location and versions, and exercises the real module/console entry points plus a synthetic retrieval comparison outside the checkout.
 - Runtime code, metric definitions, and the `0.1.0a3` package version are unchanged by this CI improvement.
