@@ -21,6 +21,8 @@ Pass an exact wheel path for the version being checked. The checker does not sel
 
 The installation step uses the existing interpreter's bundled `venv`/`ensurepip` support and installs the specified wheel with `--no-index --no-deps`. It does not upgrade pip or download packages. Build and development dependency installation are separate steps and may need network access. The checker uses a small environment allowlist and excludes source-path overrides. `PIP_CONFIG_FILE` is set to `os.devnull`, which [pip documents as disabling configuration-file loading](https://pip.pypa.io/en/stable/topics/configuration/#pip-config-file).
 
+The local wheel is passed as an escaped file URL with its computed `#sha256=` fragment. Pip checks this fragment, and older bootstrap versions also need it to record the archive hash in `direct_url.json` ([pip secure-install documentation](https://pip.pypa.io/en/stable/topics/secure-installs/), [pip 22.3.1 implementation](https://github.com/pypa/pip/blob/22.3.1/src/pip/_internal/utils/direct_url_helpers.py)). The checker requires the recorded hash to match on all supported Python versions.
+
 To save a compact local result, use a new output filename:
 
 ```sh

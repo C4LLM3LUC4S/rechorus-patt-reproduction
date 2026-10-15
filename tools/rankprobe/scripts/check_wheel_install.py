@@ -176,7 +176,8 @@ def check(wheel: Path, checkout: Path) -> dict:
         run(
             "offline wheel installation",
             [str(python), "-I", "-m", "pip", "--isolated", "install", "--no-index",
-             "--no-deps", "--disable-pip-version-check", "--no-cache-dir", str(wheel)],
+             "--no-deps", "--disable-pip-version-check", "--no-cache-dir",
+             f"{wheel.as_uri()}#sha256={wheel_hash}"],
             cwd=workspace, environment=environment,
         )
         probe = json.loads(run(

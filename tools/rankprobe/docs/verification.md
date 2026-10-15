@@ -8,6 +8,8 @@ On Windows / Python 3.12.5, the checker created an independent environment outsi
 
 Four focused integration probes then verified the gate itself: a wheel missing its console entry point failed at the launcher stage; a wheel declaring an unexpected core dependency failed before installation; an existing summary file was refused without changing its bytes; and a parent environment with synthetic source-path and index overrides still produced a correctly isolated installation. The malformed wheels stayed in ignored local artifacts. No old unit suite was rerun locally because its runtime code was unchanged. Ruff passed for the new checker. Cross-platform evidence must come from this commit's workflow, which now runs the same installation gate in each matrix job.
 
+The first installation-gate CI run, [38671586033](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/actions/runs/38671586033), passed the four Python 3.12/3.13 jobs but failed both Python 3.10 jobs at the recorded wheel hash check. Older bootstrap pip records the archive hash only when the input URL includes one. The installation target now includes the computed SHA256 fragment explicitly, preserving the required hash equality. The updated checker passed locally on Windows / Python 3.12.5; inspect the follow-up commit's workflow for cross-platform results.
+
 ## Comparison report alpha (`0.1.0a3`, 2026-10-15)
 
 The local Windows / Python 3.12.5 suite passed **170 tests and 12 subtests**, with one symbolic-link-loop test skipped because Windows symlink privileges are unavailable. Ruff passed. The CLI integration check was updated to the new comparison headings.
