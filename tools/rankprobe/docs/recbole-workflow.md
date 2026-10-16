@@ -8,7 +8,7 @@ These observations and the optional integration check target RecBole source [`7b
 
 ## Use your existing nonsequential evaluation environment
 
-Install RankProbe with its optional NumPy support, and use this helper from the RankProbe source checkout or source distribution. It is not an installed CLI subcommand. In the environment where your trained model and `FullSortEvalDataLoader` already exist:
+Use this helper from the RankProbe source checkout or source distribution in the environment where your trained model, NumPy and `FullSortEvalDataLoader` already exist. The helper is not an installed CLI subcommand and does not require RankProbe to be installed in that model environment. Keep the separate core environment from the [first-report installation](try-it.md#1-install-locally) for the later audit:
 
 ```python
 import sys
@@ -38,10 +38,18 @@ reader-A,book-X,1
 reader-A,book-Y,0
 ```
 
-With RankProbe installed, run:
+The export folder is relative to the model process's working directory. Record its absolute location before changing directories. Return to the RankProbe package folder and use the separate core interpreter below. Replace the example input paths with your actual permitted exports and judgments; omit `--qrels` if you have no independent judgments. Choose a new report directory.
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m rankprobe audit "D:/my evaluation/recbole-export/predictions.csv" --qrels "D:/my evaluation/judgments.csv" --cutoffs 1,10 --out reports/recbole-report
+```
+
+macOS / Linux:
 
 ```sh
-python -m rankprobe audit recbole-export/predictions.csv --qrels judgments.csv --cutoffs 1,10 --out recbole-report
+.venv/bin/python -m rankprobe audit "/absolute/path/to/recbole-export/predictions.csv" --qrels "/absolute/path/to/judgments.csv" --cutoffs 1,10 --out reports/recbole-report
 ```
 
 Unknown judgments can make some metrics unavailable. Read the metric eligibility and coverage in the report; do not assert complete qrels merely to obtain numbers. RankProbe's tie order and conditional metric definitions can differ from RecBole's evaluator, so this workflow does not promise numerical equality. See [protocol reference differences](trec-reference.md).

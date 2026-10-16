@@ -37,10 +37,18 @@ This copies result dictionaries, so account for their memory size. It writes onl
 
 ## Compare the exported stages
 
-With RankProbe installed:
+The snippet writes files relative to the BEIR process's working directory. Record the absolute location of `reports/beir-inputs` before changing directories. Return to the RankProbe package folder with the [separate core environment](try-it.md#1-install-locally); substitute your actual absolute input paths below. BEIR need not be installed in the core environment.
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m rankprobe compare --run "raw=D:/my evaluation/reports/beir-inputs/raw.run" --run "filtered=D:/my evaluation/reports/beir-inputs/filtered.run" --qrels "D:/my evaluation/reports/beir-inputs/judgments.qrels" --cutoffs 1,10 --out reports/beir-comparison
+```
+
+macOS / Linux:
 
 ```sh
-python -m rankprobe compare --run raw=reports/beir-inputs/raw.run --run filtered=reports/beir-inputs/filtered.run --qrels reports/beir-inputs/judgments.qrels --cutoffs 1,10 --out reports/beir-comparison
+.venv/bin/python -m rankprobe compare --run "raw=/absolute/path/to/beir-inputs/raw.run" --run "filtered=/absolute/path/to/beir-inputs/filtered.run" --qrels "/absolute/path/to/beir-inputs/judgments.qrels" --cutoffs 1,10 --out reports/beir-comparison
 ```
 
 Start at Comparison results and inspect candidate-set findings. If filtering changes the pool, a higher submitted MRR need not reflect new model scores. Matched-pool values answer a narrower question and can cover fewer queries. When a query loses every candidate, it disappears from a prediction file; inspect qrels-only coverage as well.

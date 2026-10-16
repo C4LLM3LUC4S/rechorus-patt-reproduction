@@ -35,14 +35,34 @@ The pinned base model defaults to `buffer=1`. Dataset `prepare()` caches evaluat
 
 Fix the evaluation mode and source records before constructing/preparing the dataset. If you change them, create a fresh dataset and call `prepare()` for that configuration, then obtain new predictions and event IDs from those same rows. Do not reuse old scores with a newly prepared dataset. The full-sort exporter checks the native shape/columns and fails before output when the cached sampled layout does not match; those checks cannot detect every same-shaped semantic mismatch.
 
-Then, from the RankProbe source checkout in an environment with `.[adapters]` installed:
+The captured NPZ is relative to your model process's working directory. Changing to the RankProbe checkout does not transfer that file. Export in the same model environment, using its existing NumPy and the source helper; no RankProbe installation is needed there. Replace the scripts placeholder with the actual absolute source-checkout path:
 
-```sh
-python scripts/export_rechorus.py sampled-scores.npz --out sampled-predictions.csv --positive-index 0
-python -m rankprobe audit sampled-predictions.csv --cutoffs 1,10 --out sampled-report
+```python
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path("/absolute/path/to/rankprobe/scripts").resolve()))
+from export_rechorus import export_npz
+
+metadata = export_npz(Path("sampled-scores.npz"), Path("sampled-predictions.csv"),
+                      positive_index=0)
+print(Path("sampled-predictions.csv").resolve())
 ```
 
-`--positive-index 0` is an explicit assertion about this dataset protocol. It labels only that observed positive; other candidates remain unknown by default. The native framework evaluates under its own sampled-negative assumptions. Do not silently copy those assumptions into an audit of real relevance judgments.
+Then return to the RankProbe package folder with the [separate core environment](try-it.md#1-install-locally). Substitute the printed absolute CSV path below; the core audit does not need NumPy. The output directory must be new.
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m rankprobe audit "D:/my evaluation/sampled-predictions.csv" --cutoffs 1,10 --out reports/sampled-report
+```
+
+macOS / Linux:
+
+```sh
+.venv/bin/python -m rankprobe audit "/absolute/path/to/sampled-predictions.csv" --cutoffs 1,10 --out reports/sampled-report
+```
+
+`positive_index=0` (CLI `--positive-index 0`) is an explicit assertion about this dataset protocol. It labels only that observed positive; other candidates remain unknown by default. The native framework evaluates under its own sampled-negative assumptions. Do not silently copy those assumptions into an audit of real relevance judgments.
 
 The default local identity mode assigns each row a distinct `query_000001`, etc. Thus two interaction rows from the same source user remain separate prediction contexts. Item tokens are remapped consistently within this one export. Original IDs and their mapping are omitted from the CSV/metadata, and this is pseudonymization, not an anonymity guarantee. Cross-run comparison requires the same source row order and item mapping; shuffled independent exports are not aligned merely because they have the same generated names.
 
@@ -56,7 +76,7 @@ with Path("sampled-scores-with-events.npz").open("xb") as handle:
     np.savez(handle, scores=scores, item_id=candidate_ids, query_id=query_ids)
 ```
 
-Then use `--identity source` with that NPZ. This mode requires unique string event IDs and preserves original item IDs. It can expose physical candidate-pool changes that local first-appearance pseudonyms conceal. It does not prove that independently supplied IDs refer to the same real event or shared item namespace, and it retains potentially identifying source tokens. See [adapter identity rules](adapters.md) before sharing or comparing exports.
+Change the `export_npz` source argument to `Path("sampled-scores-with-events.npz")` and add `identity="source"` (the equivalent CLI option is `--identity source`), using new output filenames. This mode requires unique string event IDs and preserves original item IDs. It can expose physical candidate-pool changes that local first-appearance pseudonyms conceal. It does not prove that independently supplied IDs refer to the same real event or shared item namespace, and it retains potentially identifying source tokens. See [adapter identity rules](adapters.md) before sharing or comparing exports.
 
 The sampled NPZ recipe excludes `test_all=True`. That path needs the separate helper below because it has different catalog/click masking and repeats the observed target in its candidate universe. The RecBole mask helper uses different dataset contracts and cannot be applied to it by renaming objects.
 
@@ -89,8 +109,18 @@ The new destination's parent must exist; existing destinations and symbolic-link
 
 It writes `predictions.csv` and `exclusions.json`. The retained observed target has relevance 1 under this explicit one-positive convention; other eligible candidates remain unknown. Source item IDs become exact decimal strings, and supplied event IDs are retained. Metadata records overlapping `train_clicked`, `residual_clicked` and `own_target_catalog_duplicate` reasons. Their counts can overlap and must not be summed as distinct exclusions. Real exported identifiers can identify people, so review before sharing.
 
+Record the absolute location of `full-sort-export` in the model process before changing directories. Return to the RankProbe package folder and use the separate core interpreter, substituting your actual exported path.
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m rankprobe audit "D:/my evaluation/full-sort-export/predictions.csv" --cutoffs 1,10 --out reports/full-sort-report
+```
+
+macOS / Linux:
+
 ```sh
-python -m rankprobe audit full-sort-export/predictions.csv --cutoffs 1,10 --out full-sort-report
+.venv/bin/python -m rankprobe audit "/absolute/path/to/full-sort-export/predictions.csv" --cutoffs 1,10 --out reports/full-sort-report
 ```
 
 Inspect the exclusion sidecar alongside report coverage. Residual clicks include dev/test observations under the pinned upstream policy; they are not necessarily information available before each event. Unexpected NaN, positive infinity or unmasked negative infinity fails before output, rather than being silently discarded. This bridge consumes the complete matrix already returned by the upstream runner; it does not stream model inference. Begin with a small permitted subset and account for catalog-sized CSV and exclusion metadata. The adapter neither fills unknown labels with zero nor asserts complete judgments, native metric parity, or support for all upstream model families.
