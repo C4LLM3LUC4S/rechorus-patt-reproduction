@@ -2,7 +2,7 @@
 
 MTEB's ordinary result JSON contains metric summaries, not the query/document scores needed by RankProbe. Its optional prediction JSON can be transferred to the existing CSV interface with a small local script. Keep model evaluation in your existing MTEB environment and run conversion and auditing in the [core environment](try-it.md#1-install-locally).
 
-The source inspected here is MTEB tag `2.26.1`, commit [`a689529bef70dae42c0747105154c10b00c63879`](https://github.com/embeddings-benchmark/mteb/tree/a689529bef70dae42c0747105154c10b00c63879). The instructions below are tied to that source. They were checked by source inspection and an original synthetic file-shape example through RankProbe; the MTEB framework, a model, and a benchmark dataset were not run for this recipe.
+The source inspected here is MTEB tag `2.26.1`, commit [`a689529bef70dae42c0747105154c10b00c63879`](https://github.com/embeddings-benchmark/mteb/tree/a689529bef70dae42c0747105154c10b00c63879). The instructions below are tied to that source. The initial recipe was checked by source inspection and an original synthetic file-shape example through RankProbe. A separate optional native gate below exercises the actual framework on original miniature inputs; its passing status must come from the exact CI commit.
 
 ## Obtain a separate prediction file
 
@@ -134,3 +134,17 @@ Default retrieval depth is [`max(k_values)`, initially 1000](https://github.com/
 Record the source checksum, selected scope, MTEB version, task and dataset revision, model revision, retrieval/reranking depth and scoring filters beside your report. The prediction metadata contains only model name and revision; the bridge does not verify those declarations or recover missing provenance. For comparisons, use independent files for each declared evaluation and keep task/scope/IDs consistent.
 
 Current [MTEB MRR](https://github.com/embeddings-benchmark/mteb/blob/a689529bef70dae42c0747105154c10b00c63879/mteb/_evaluators/retrieval_metrics.py#L28-L54) breaks score ties by descending document ID and treats candidates outside its positive judgments as non-hits. RankProbe defaults to ascending item-ID ties and preserves absent labels as unknown. JSON insertion order is not a declared MTEB rank; `--tie-policy input` alone does not reproduce that native ordering. Read [metric scopes and eligibility](metrics.md) before interpreting a difference. This recipe establishes a score-file boundary, not native metric parity, benchmark correctness, automatic leakage exclusion, outside adoption, or measured human time saved.
+
+## Optional synthetic native check
+
+In an isolated environment containing the full pinned MTEB dependencies and an installed RankProbe, run from this checkout:
+
+```sh
+python scripts/check_mteb_workflow.py --out mteb-workflow-example
+```
+
+The output directory must be new and its parent must exist. This optional check needs Python 3.11 or newer; RankProbe's core still supports Python 3.10. The full framework import has substantially more dependencies than the core. The separate Ubuntu/Python 3.12 CI job pins CPU Torch, verifies the source archive and eight installed source files, runs `pip check`, and limits the job to 20 minutes. Its dependency installation is online; the actual exercise isolates caches and blocks runtime network access. These packages do not become core dependencies.
+
+The check uses the official `MockRetrievalTask` class and untrained random encoder over original in-memory queries, documents and sparse judgments. It runs one `test` split through actual `mteb.evaluate`, saves predictions, executes the copied conversion code above and runs the real RankProbe CLI. Identical document text under different IDs supplies a deliberate tie control. Score-only and separate sparse-judgment reports must preserve unknowns and avoid assumptions; they do not establish native metric equality. No pretrained weights or benchmark dataset are needed for this bounded path.
+
+The source archive SHA256 is `b5e751e0f763a28e5bd2595b3bf392c981d5d6a884b0d535ae3a439d54ecaf4e`. An aggregate summary is retained as a CI artifact. Inspect the current commit's run before treating the installation or exercise as passed. Actual framework execution on synthetic inputs remains separate from an outside user's real export, independent adoption or measured human time saved.

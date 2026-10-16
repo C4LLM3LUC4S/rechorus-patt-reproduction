@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Added an optional, isolated MTEB native workflow check on original in-memory inputs. It exercises real prediction saving, the copied guide conversion and RankProbe reports, with offline runtime, separate caches and sparse-label controls; the core dependencies and metric contracts are unchanged.
 - Added a source-grounded MTEB retrieval prediction recipe using the existing CSV interface. It makes model-output directories, metric-cache bypass, subset/split selection, independent judgments and pre-scoring candidate scope explicit; no framework dependency, core loader or native-parity claim was added.
 - Published the complete trial feedback record and linked it from the first-report walkthrough. It separates prior knowledge, concrete actions and repeat use from intent, and active human effort from machine waits; unmeasured times and absent comparison baselines cannot support time-saving claims. No adoption results are implied.
 - Added an opt-in real-input reference checker for the checksummed TREC-COVID Round 1 pair. It compares an explicitly declared nonrelevant assumption and aligned tie order with the current pinned NIST implementation, preserving sparse source judgments, the default unknown audit and incomplete-qrels status. Historical score agreement does not authenticate the original evaluator.
