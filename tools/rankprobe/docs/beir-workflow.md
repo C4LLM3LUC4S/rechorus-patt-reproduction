@@ -53,6 +53,8 @@ macOS / Linux:
 
 Start at Comparison results and inspect candidate-set findings. If filtering changes the pool, a higher submitted MRR need not reflect new model scores. Matched-pool values answer a narrower question and can cover fewer queries. When a query loses every candidate, it disappears from a prediction file; inspect qrels-only coverage as well.
 
+The pinned [BEIR saver and loader](https://github.com/beir-cellar/beir/blob/ef83d29307061c65d04b035b4f4e7c18bd8374af/beir/util.py#L134-L155) write and reconstruct queries through document rows, so an empty query mapping cannot survive the run-file round trip. Preserve the intended evaluation query IDs separately before retrieval/export and compare them with both run and qrels IDs. A qrels-only ID may indicate lost predictions or judgments from another split; a query absent from both files cannot be detected from these files alone. Restore accidental omissions or state the narrower scope; do not add dummy candidates or automatically score missing queries as zero. The [existing walkthrough](../examples/trec/README.md) explains the resulting coverage differences.
+
 Sparse qrels often leave retrieved documents unjudged. RankProbe preserves that uncertainty and can leave metrics unavailable. BEIR's native metric conventions may differ; do not add `--unjudged nonrelevant` or `--qrels-complete` merely to obtain a number. If nonrelevance is an intentional evaluation assumption, declare and record it explicitly. See [reference protocol differences](trec-reference.md).
 
 ## Reproduce the integration check
