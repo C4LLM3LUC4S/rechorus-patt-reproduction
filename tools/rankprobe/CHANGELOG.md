@@ -2,6 +2,7 @@
 
 ## 0.1.0a4 — MRR eligibility from known prefixes
 
+- Unsupported-extension errors identify the appropriate `--input-format` or `--qrels-format` CLI flag alongside the Python argument. Input parsing and format selection remain explicit.
 - MRR can include a query when the first relevant rank is already determined by known labels, even if later candidates remain unknown. An unknown before that first relevant item still excludes the query; fully known top-k lists with no relevant item contribute zero.
 - Missing labels, assumption counts, NDCG, Recall and exact tie-bound rules are unchanged. Broader MRR coverage changes the eligible subset and can change its average; it is not evidence of improved ranking scores.
 - MRR results record `eligibility_rule=known_first_relevant_prefix` in JSON and HTML coverage details. MRR deltas require the same explicit rule on both sides; reports without it must be recomputed from their original inputs before comparison.

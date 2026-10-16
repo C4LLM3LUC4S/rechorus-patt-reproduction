@@ -38,8 +38,10 @@ def _input_format(path: Path, format: str, *, qrels: bool = False) -> str:
     if extension in trec_extensions:
         return "trec"
     supported = ".csv, .jsonl, and .qrels" if qrels else ".csv, .jsonl, .run, and .trec"
+    cli_option = "--qrels-format" if qrels else "--input-format"
     raise InputError(
-        f"{path}: supported extensions are {supported}; use format='trec' for TREC text files"
+        f"{path}: supported extensions are {supported}; for TREC text use "
+        f"{cli_option} trec (CLI) or format='trec' (Python)"
     )
 
 

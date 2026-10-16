@@ -69,7 +69,7 @@ If fetching fails or a fingerprint changes, inspect the source response and reta
 
 ## Audit with explicit input formats
 
-The prediction filename has no extension and the judgment file ends in `.txt`. Neither identifies its TREC format automatically. The observed automatic-format attempt exited with code 2 at the qrels file and produced no report. Both format declarations are needed:
+The prediction filename has no extension and the judgment file ends in `.txt`. Neither identifies its TREC format automatically. The observed automatic-format attempt exited with code 2 at the qrels file and produced no report. The error names `--qrels-format trec`; after declaring that format, the extensionless prediction needs `--input-format trec` too. Both format declarations are needed:
 
 ```sh
 python -m rankprobe audit artifacts/trec-covid-round1-local/ir_covid19_cle_lmd --input-format trec --qrels artifacts/trec-covid-round1-local/qrels-rnd1.txt --qrels-format trec --gain linear --tie-policy item_id --cutoffs 1,5,10 --unjudged unknown --out artifacts/trec-covid-round1-local/report
