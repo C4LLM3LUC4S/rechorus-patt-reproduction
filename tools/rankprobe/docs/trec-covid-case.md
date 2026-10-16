@@ -77,9 +77,9 @@ python -m rankprobe audit artifacts/trec-covid-round1-local/ir_covid19_cle_lmd -
 
 This retains the default unknown-label policy and leaves qrels completeness undeclared. It uses descending scores and ascending item IDs for ties; submitted rank fields do not determine ordering. The run has six fields per record, while qrels has four. Fractional iteration values such as `0.5` in qrels are bookkeeping and are ignored, not interpreted as relevance grades. The report destination is new and no overwrite flag is used.
 
-## Observed coverage and interpretation
+## Observed coverage and version migration
 
-The explicit-format local audit exited with code 0, reporting two warnings and one informational finding. Its inputs remained byte-identical. These are the recorded results under the command's declared protocol:
+The explicit-format local audits in `0.1.0a3` and `0.1.0a4` each exited with code 0, reporting two warnings and one informational finding. Their inputs remained byte-identical. The following table records the current `0.1.0a4` default-unknown audit under the command's declared protocol:
 
 | Observation | Result |
 | --- | --- |
@@ -88,13 +88,16 @@ The explicit-format local audit exited with code 0, reporting two warnings and o
 | Supplied known labels among retrieved candidates | 781 |
 | Candidates still unknown | 1,820 |
 | Assumed nonrelevant candidates | 0 |
-| MRR@10 coverage | 6 of 30 queries eligible; 24 excluded; `partial` |
+| MRR@1 / @5 / @10 eligible queries | 27 / 19 / 17 out of 30 |
+| MRR@10 | 0.6029411764705882; 17 eligible, 13 excluded; `partial` |
 | NDCG@1, @5 and @10 | Unavailable; no eligible queries |
 | Recall@1, @5 and @10 | Unavailable; complete qrels not declared |
 | Reported score ties | 249 groups, 631 candidates, all 30 queries |
 | Exact tie bounds | Unavailable; no query has all candidate judgments known |
 
-MRR@10 excludes a query when any of its top-ten candidates is unjudged, even when an earlier candidate is known relevant. Its value is an average over the six eligible queries. Inspect the coverage details before interpreting it; excluded queries are not zero-valued observations.
+MRR can include a query when all labels through its first relevant item are known; later unknowns cannot change that first rank and remain unknown. An unknown before it still excludes the query. The reported value is a conditional mean over 17 eligible queries, with `eligibility_rule=known_first_relevant_prefix` visible in JSON and HTML coverage details. Excluded queries are not zero-valued observations.
+
+The retained `0.1.0a3` report used the deliberately conservative all-top-k-known rule: its MRR eligible counts were 27/15/6 at cutoffs 1/5/10, and MRR@10 was 0.4583333333333333 over six queries. The separate `0.1.0a4` audit includes 11 additional queries at cutoff 10 without assigning any missing label or changing the 1,820 unknown / zero assumed counts. NDCG, Recall, protocol settings and source hashes match the retained report. The larger conditional mean reflects a changed eligible population, not better rankings. Do not subtract the old and new values; recompute both runs under the same declared rule when comparing them.
 
 NDCG requires known labels for every submitted candidate under this policy, so an unknown candidate below the cutoff can still exclude its query. All 30 queries have an unknown submitted candidate here. Recall additionally needs a justified completeness declaration; a pooled set of judgments does not supply that declaration automatically. Exact tie bounds are also unavailable because their scope requires every candidate judgment in a query to be known. Tie counts identify equal scores to inspect, not a defect or evidence that a metric changed.
 
@@ -140,6 +143,6 @@ The checker invokes NDCG on the original paths once, without truncating the run:
 trec_eval -q -l 1 -m ndcg_cut.1,5,10 ORIGINAL_QRELS ORIGINAL_RUN
 ```
 
-It invokes `recip_rank` separately with `-M 1`, `-M 5` and `-M 10`, because that measure has no cutoff parameter. It does not use `-J`, which would remove unjudged candidates and change their positions. The expected result is exactly 186 comparisons: 30 per-query values plus one macro value, for each of three cutoffs and two metrics. Each comparison uses absolute tolerance `0.00005000001` and relative tolerance zero, reflecting native four-decimal output. A pass establishes numerical agreement only under this declared protocol and output precision. The checker also requires the unchanged default controls: no assumed nonrelevant candidates, six eligible MRR@10 queries, and unavailable NDCG and Recall.
+It invokes `recip_rank` separately with `-M 1`, `-M 5` and `-M 10`, because that measure has no cutoff parameter. It does not use `-J`, which would remove unjudged candidates and change their positions. The expected result is exactly 186 comparisons: 30 per-query values plus one macro value, for each of three cutoffs and two metrics. Each comparison uses absolute tolerance `0.00005000001` and relative tolerance zero, reflecting native four-decimal output. A pass establishes numerical agreement only under this declared protocol and output precision. The checker also requires the `0.1.0a4` default controls: no assumed nonrelevant candidates, 27/19/17 eligible MRR queries under the declared prefix rule, and unavailable NDCG and Recall. The fully resolved nonrelevant reference view is unaffected by the MRR eligibility migration.
 
 CI uses the modern NIST source pin [`ba38899cbd4de0fb699b47f39b64ef1c107e4a5c`](https://github.com/usnistgov/trec_eval/tree/ba38899cbd4de0fb699b47f39b64ef1c107e4a5c), whose version is `10.0-rc3`. The verified source archive SHA256 is `d603cd657950aebea3a5ed08cee5ea0e5e836012ed5eb63303d3a7d66e49ba6a`; the reference job builds the unmodified source and runs its upstream `quicktest` before the checker. Check the CI run for the exact RankProbe commit before claiming this gate passed. The summary records the supplied executable's hash and version, but a version string alone does not prove build provenance. This modern reference cannot be described as the original 2020 binary, whose build and complete command remain unverified.

@@ -123,6 +123,7 @@ def _metrics(value: Any, json_path: str | None = None) -> str:
             coverage = {
                 key: metric[key]
                 for key in (
+                    "eligibility_rule",
                     "query_universe",
                     "qrels_only_queries",
                     "exclusion_reasons",

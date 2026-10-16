@@ -79,6 +79,8 @@ q2,doc_c,0.4,2
 
 分数必须有限，越大越靠前。相关性非负，MRR 与 Recall 把大于 0 的标签视为相关。缺少标签表示未知，只有显式指定 `--unjudged nonrelevant` 才将未标注候选视为不相关。JSONL 使用相同字段。
 
+从 `0.1.0a4` 起，首个相关项及其之前的标签已知时，MRR 可以纳入该查询，后续未知标签仍保持未知。旧版采用更保守的资格规则；跨版本比较条件均值前，请先看[指标语义和迁移说明](docs/metrics.md#mrrk)。
+
 ```sh
 python -m rankprobe audit predictions.jsonl --out reports/my-run
 ```
@@ -115,7 +117,7 @@ RankProbe 不保证与任意框架输出相同。默认同分规则是物品 ID 
 
 ## 当前阶段
 
-这是早期 `0.1.0a3` 实现，已执行的检查见 [验证记录](docs/verification.md)，尚无外部采用、收入或论文成果的证据。下一步按 [试用计划](docs/validation-plan.md) 和 [路线图](docs/roadmap.md) 验证陌生用户能否独立使用并获得实际帮助，再决定扩展方向。CI 覆盖多个 Python 版本及 Windows/Ubuntu，是否实际通过需查看对应提交的运行记录。
+这是早期 `0.1.0a4` 实现，已执行的检查见 [验证记录](docs/verification.md)，尚无外部采用、收入或论文成果的证据。下一步按 [试用计划](docs/validation-plan.md) 和 [路线图](docs/roadmap.md) 验证陌生用户能否独立使用并获得实际帮助，再决定扩展方向。CI 覆盖多个 Python 版本及 Windows/Ubuntu，是否实际通过需查看对应提交的运行记录。
 
 ```sh
 python -m pip install -e ".[dev,adapters]"
@@ -123,7 +125,7 @@ python -m pytest
 python -m ruff check .
 python -m build
 python scripts/check_distribution.py
-python scripts/check_wheel_install.py --wheel dist/rankprobe-0.1.0a3-py3-none-any.whl
+python scripts/check_wheel_install.py --wheel dist/rankprobe-0.1.0a4-py3-none-any.whl
 ```
 
 CI 同时检查源码与构建出的 wheel：在干净环境中独立安装后，运行模块入口、实际命令行入口和检索比较，见 [安装验证说明](docs/installation-checks.md)。是否通过以对应提交的运行记录为准。

@@ -1,5 +1,13 @@
 # Verification record
 
+## Known-prefix MRR eligibility (`0.1.0a4`)
+
+This version refines the deliberately conservative `0.1.0a3` contract. A known first relevant rank stays determined when only later labels are unknown. Unknowns before that rank remain unresolved; no missing source label is written as zero. MRR outputs record `known_first_relevant_prefix`, and MRR deltas require matching explicit rules. NDCG, Recall and exact tie-bound requirements are unchanged.
+
+Verification includes exhaustive binary completions of small partially judged rankings, threshold and tie controls, input-label preservation, and refusal to compare old or mismatched MRR rules. The original TREC-COVID inputs provide a separate real-data check: eligible counts at 1/5/10 are 27/19/17 under this rule, versus the historical `0.1.0a3` counts 27/15/6. More eligible queries do not establish improved ranking quality or human time saved. The [case guide](trec-covid-case.md) keeps the version distinction explicit.
+
+Check the CI run for the exact commit before treating its installed-wheel or native-reference gates as passed. Historical sections below describe the versions and commits they actually checked; their results do not automatically validate this version.
+
 ## Explicit NPZ source identities and alias protection
 
 A concrete comparison reproduced a local-identity limitation: separate NPZ exports of physical pools `[A,B,C]` and `[A,D,E]` both received `item_000001/2/3`, and the audit consequently treated their generated names as a matched pool. The opt-in `--identity source` mode requires unique caller-supplied event IDs and retains source item tokens. With those identities, the same inputs correctly produce zero matched queries and one differing candidate pool. Reordered-event checks also verify alignment by declared event ID. The default local mode remains available for single-export inspection; preserved tokens cannot establish shared real-world meanings by themselves.

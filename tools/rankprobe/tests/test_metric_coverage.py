@@ -10,7 +10,9 @@ def test_excluded_ids_follow_each_metrics_judgment_rule():
     ]
     metrics = evaluate_metrics(rows, Protocol(cutoffs=(1, 2)))
     assert metrics["mrr@1"]["excluded_query_ids"] == ["unknown_first"]
-    assert metrics["mrr@2"]["excluded_query_ids"] == ["unknown_first", "unknown_later"]
+    assert metrics["mrr@2"]["excluded_query_ids"] == ["unknown_first"]
+    assert metrics["mrr@2"]["eligible_query_ids"] == ["fully_known", "unknown_later"]
+    assert metrics["mrr@2"]["eligibility_rule"] == "known_first_relevant_prefix"
     assert metrics["ndcg@1"]["excluded_query_ids"] == ["unknown_first", "unknown_later"]
     assert metrics["recall@1"]["excluded_query_ids"] == [
         "fully_known", "unknown_first", "unknown_later"

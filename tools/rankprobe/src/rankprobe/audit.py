@@ -254,7 +254,7 @@ def audit_run(
                 "unknown_judgments",
                 "warning",
                 "Judgment coverage limits metrics",
-                "Unknown relevance is not silently zero. MRR excludes queries with an unknown top-k label; NDCG excludes queries with any unknown candidate label.",
+                "Unknown relevance is not silently zero. MRR requires known labels through the first relevant item within top-k; an earlier unknown excludes the query, while later unknowns stay unknown without affecting that reciprocal rank. With no relevant item, every top-k label must be known to report zero. NDCG excludes queries with any unknown candidate label.",
                 {
                     "candidates": len(unknown),
                     "examples": [

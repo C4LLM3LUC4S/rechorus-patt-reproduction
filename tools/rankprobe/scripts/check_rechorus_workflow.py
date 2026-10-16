@@ -395,10 +395,12 @@ def _check_full_sort_workflow(out: Path, np, torch, BaseRunner, GeneralModel, ex
         require(safe_report["metrics"]["mrr@1"]["value"] == 1.0
                 and safe_report["metrics"]["mrr@1"]["eligible_query_ids"] == query_ids,
                 "full-sort audit: finite observed positives or event IDs were lost")
-        require(safe_report["metrics"]["mrr@2"]["value"] is None
+        require(safe_report["metrics"]["mrr@2"]["value"] == 1.0
+                and safe_report["metrics"]["mrr@2"]["eligible_query_ids"] == query_ids
+                and safe_report["summary"]["assumed_nonrelevant_candidates"] == 0
                 and safe_report["metrics"]["ndcg@1"]["value"] is None
                 and safe_report["metrics"]["recall@1"]["value"] is None,
-                "full-sort audit: unknown catalog judgments were treated as zero")
+                "full-sort audit: known-prefix MRR or unknown catalog scope differs")
         safe_sources = safe_report["provenance"]["sources"]
         require(len(safe_sources) == 1 and safe_sources[0]["filename"] == exported_csv.name
                 and safe_sources[0]["sha256"] == safe_input_hashes[exported_csv.name],
@@ -705,8 +707,11 @@ def check_workflow(out: Path, source: Path) -> dict:
             and report["metrics"]["mrr@1"]["excluded_query_ids"] == ["query_000002"],
             "audit: unknown top-ranked candidate eligibility differs")
     require(report["metrics"]["mrr@1"]["value"] == 1.0
-            and report["metrics"]["mrr@2"]["value"] is None,
-            "audit: missing labels were treated as zero")
+            and report["metrics"]["mrr@2"]["value"] == 1.0
+            and report["metrics"]["mrr@2"]["eligible_query_ids"] == ["query_000001"]
+            and report["metrics"]["mrr@2"]["excluded_query_ids"] == ["query_000002"]
+            and report["summary"]["assumed_nonrelevant_candidates"] == 0,
+            "audit: known-prefix MRR or unknown-first exclusion differs")
     require(report["metrics"]["ndcg@1"]["value"] is None
             and report["metrics"]["recall@1"]["value"] is None,
             "audit: unsupported NDCG or Recall was invented")

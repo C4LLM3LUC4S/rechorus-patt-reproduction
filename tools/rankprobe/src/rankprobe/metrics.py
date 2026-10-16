@@ -3,6 +3,7 @@
 Scores are sorted in descending order. Ties use either lexical item IDs or
 stable input order. Relevance thresholds affect binary MRR and Recall only;
 NDCG uses the nonnegative graded judgments and the selected gain function.
+MRR requires a known prefix through its first relevant item, not later labels.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from typing import Iterable
 from .model import Protocol, Row
 
 Qrels = dict[str, dict[str, float | None]]
+MRR_ELIGIBILITY_RULE = "known_first_relevant_prefix"
 
 
 def validate_inputs(
@@ -225,18 +227,18 @@ def _evaluate_rankings(
                 for key in (mrr_key, ndcg_key, recall_key):
                     reasons[key]["query_missing_from_complete_qrels"] += 1
                 continue
-            if any(row.relevance is None for row in top):
+            reciprocal = 0.0
+            for rank, row in enumerate(top, 1):
+                if row.relevance is None:
+                    reciprocal = None
+                    break
+                if row.relevance > protocol.relevance_threshold:
+                    reciprocal = 1.0 / rank
+                    break
+            if reciprocal is None:
                 reasons[mrr_key]["unknown_top_k_judgment"] += 1
             else:
-                first = next(
-                    (
-                        rank
-                        for rank, row in enumerate(top, 1)
-                        if row.relevance > protocol.relevance_threshold
-                    ),
-                    None,
-                )
-                observations[mrr_key].append(1.0 / first if first is not None else 0.0)
+                observations[mrr_key].append(reciprocal)
                 eligible_queries[mrr_key].append(query_id)
                 references[mrr_key].add("submitted_candidates")
             if not all_known:
@@ -308,6 +310,8 @@ def _evaluate_rankings(
             if restricted_ndcg
             else "Macro average over eligible queries.",
         }
+        if key.startswith("mrr@"):
+            result[key]["eligibility_rule"] = MRR_ELIGIBILITY_RULE
     return result
 
 
@@ -339,7 +343,7 @@ def evaluate_metrics(
 
 
 def metric_deltas(left: dict, right: dict) -> dict:
-    """Subtract comparable aggregates; changed eligibility never yields a delta."""
+    """Subtract aggregates only with matching eligibility sets, rules and pools."""
     result = {}
     for key in left.keys() & right.keys():
         a, b = left[key], right[key]
@@ -348,6 +352,14 @@ def metric_deltas(left: dict, right: dict) -> dict:
             and b["value"] is not None
             and a["eligible_query_ids"] == b["eligible_query_ids"]
             and a["reference"] == b["reference"]
+            and (
+                not key.startswith("mrr@")
+                or (
+                    isinstance(a.get("eligibility_rule"), str)
+                    and bool(a["eligibility_rule"].strip())
+                    and a["eligibility_rule"] == b.get("eligibility_rule")
+                )
+            )
         ):
             result[key] = {
                 "delta": b["value"] - a["value"],
@@ -358,6 +370,6 @@ def metric_deltas(left: dict, right: dict) -> dict:
             result[key] = {
                 "delta": None,
                 "status": "not_checked",
-                "reason": "Metric availability, eligible query sets, or reference pools differ.",
+                "reason": "Metric availability, eligible query sets, eligibility rules, or reference pools differ.",
             }
     return dict(sorted(result.items()))

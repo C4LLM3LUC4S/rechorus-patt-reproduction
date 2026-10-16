@@ -21,7 +21,11 @@ Duplicate `(query_id, item_id)` entries are diagnosed before unique-item evaluat
 
 For each query, reciprocal rank is `1 / rank` for the first relevant item within cutoff k and zero if none is found in that cutoff. MRR is the arithmetic mean across eligible queries; each query has equal weight.
 
-Under `unjudged=unknown`, a query is excluded whenever any candidate within top k has an unknown label. This conservative rule also excludes a query whose first item is known relevant but a later top-k item is unknown. Treating unknown candidates as nonrelevant is available only as an explicit protocol choice. The report includes eligible-query counts, so a mean computed on a small judged subset is not mistaken for full coverage.
+Under `unjudged=unknown`, scan the declared top-k ordering until the first known relevant item. If all earlier labels are known, its reciprocal rank is determined and the query is eligible; unknown labels after it remain unknown and cannot change that first rank. If an unknown occurs first, exclude the query because it could conceal an earlier relevant item. A fully judged top-k list with no relevant item contributes zero. For example, `[1, unknown]` has RR@2 = 1, while `[unknown, 1]` is unresolved. Relevance must be strictly above the declared threshold.
+
+This is the `known_first_relevant_prefix` rule introduced in `0.1.0a4`. Version `0.1.0a3` deliberately required every top-k label to be known, excluding even `[1, unknown]`. Keep earlier reports with their original version. MRR deltas now require the same explicit `eligibility_rule` on both sides; recompute older reports from the original inputs before comparing them. An expanded eligible subset can change a conditional average without any ranking change.
+
+An MRR status of `ok` can coexist with unknown labels after the first relevant item: the stated MRR is determined for all submitted queries, not every candidate's judgment. NDCG, Recall and exact tie bounds retain their own requirements. Treating unknown candidates as nonrelevant remains a separate explicit protocol choice. Read the reported eligible-query counts before interpreting a partial mean; excluded queries are not zeros.
 
 ### Positive-only labels
 

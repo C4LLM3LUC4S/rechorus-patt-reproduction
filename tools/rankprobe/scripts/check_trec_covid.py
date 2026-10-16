@@ -129,9 +129,10 @@ def _unknown_control(rows: list[Row], qrels: Qrels) -> dict:
     require(sum(row.relevance is None for row in resolved) == 1820,
             "default unknown: missing judgments were not preserved")
     metrics = evaluate_metrics(rows, protocol, qrels)
-    for cutoff, count in zip(CUTOFFS, (27, 15, 6)):
+    for cutoff, count in zip(CUTOFFS, (27, 19, 17)):
         mrr = metrics[f"mrr@{cutoff}"]
         require(mrr["status"] == "partial" and mrr["evaluated_queries"] == count
+                and mrr["eligibility_rule"] == "known_first_relevant_prefix"
                 and mrr["value"] is not None,
                 "default unknown: MRR coverage differs")
         for prefix in ("ndcg", "recall"):
@@ -211,8 +212,8 @@ def _compare_output(
 
 def _macro_summary(metrics: dict) -> dict:
     fields = ("value", "status", "evaluated_queries", "total_queries",
-              "excluded_queries", "reference", "query_universe")
-    return {key: {field: value[field] for field in fields}
+              "excluded_queries", "reference", "query_universe", "eligibility_rule")
+    return {key: {field: value[field] for field in fields if field in value}
             for key, value in sorted(metrics.items())}
 
 

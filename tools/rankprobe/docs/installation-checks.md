@@ -5,7 +5,7 @@ Source tests and a successful build do not exercise the installed console launch
 ```sh
 python -m build
 python scripts/check_distribution.py
-python scripts/check_wheel_install.py --wheel dist/rankprobe-0.1.0a3-py3-none-any.whl
+python scripts/check_wheel_install.py --wheel dist/rankprobe-0.1.0a4-py3-none-any.whl
 ```
 
 Pass an exact wheel path for the version being checked. The checker does not select whichever old artifact happens to be present in `dist`. CI builds in a clean checkout, where its `dist/*.whl` expression resolves to one wheel.
@@ -26,7 +26,7 @@ The local wheel is passed as an escaped file URL with its computed `#sha256=` fr
 To save a compact local result, use a new output filename:
 
 ```sh
-python scripts/check_wheel_install.py --wheel dist/rankprobe-0.1.0a3-py3-none-any.whl --summary artifacts/wheel-check.json
+python scripts/check_wheel_install.py --wheel dist/rankprobe-0.1.0a4-py3-none-any.whl --summary artifacts/wheel-check.json
 ```
 
 An existing summary is refused. Original wheel and fixture bytes are checked before and after use. Temporary environments, copied inputs and reports are removed after the check; the optional summary contains aggregate checks and the wheel hash. A passing result demonstrates these specific installation flows, not benchmark validity, compatibility with every environment, or external adoption.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0a4 — MRR eligibility from known prefixes
+
+- MRR can include a query when the first relevant rank is already determined by known labels, even if later candidates remain unknown. An unknown before that first relevant item still excludes the query; fully known top-k lists with no relevant item contribute zero.
+- Missing labels, assumption counts, NDCG, Recall and exact tie-bound rules are unchanged. Broader MRR coverage changes the eligible subset and can change its average; it is not evidence of improved ranking scores.
+- MRR results record `eligibility_rule=known_first_relevant_prefix` in JSON and HTML coverage details. MRR deltas require the same explicit rule on both sides; reports without it must be recomputed from their original inputs before comparison.
+- This refines the deliberately conservative 0.1.0a3 eligibility contract. Preserve earlier reports with their version and do not subtract old and new conditional averages.
+
 ## Unreleased — installation, explicit input conversion and reference checks
 
 - Added an opt-in real-input reference checker for the checksummed TREC-COVID Round 1 pair. It compares an explicitly declared nonrelevant assumption and aligned tie order with the current pinned NIST implementation, preserving sparse source judgments, the default unknown audit and incomplete-qrels status. Historical score agreement does not authenticate the original evaluator.

@@ -37,7 +37,7 @@ Open `reports/trec-default/report.html`. The default is ascending item ID within
 
 For q1, ascending IDs put the nonrelevant doc_a first, so reciprocal rank is 1/2 and NDCG@2 is `1/log2(3)`. Baseline's q2 retrieves no relevant document, so both values are zero. Averaging q1 and q2 halves those values. The reordered run's missing q2 is excluded, not imputed as zero. Its apparent gain therefore comes entirely from a different query population.
 
-For q3, an unknown top-2 judgment excludes that query from MRR@2, and the unknown candidate label also excludes it from NDCG. The absent q4 is reported but not inserted into either average. These are partial-coverage metrics, not full-query benchmark results. The matched-pool section includes q1/q3 structurally, but only q1 is metric-eligible under this protocol.
+For q3, an unknown judgment occurs before the first known relevant item, excluding that query from MRR@2; the unknown candidate label also excludes it from NDCG. The absent q4 is reported but not inserted into either average. These are partial-coverage metrics, not full-query benchmark results. The matched-pool section includes q1/q3 structurally, but only q1 is metric-eligible under this protocol.
 
 ## Isolate the tie convention
 

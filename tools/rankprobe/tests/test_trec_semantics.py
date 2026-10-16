@@ -51,9 +51,10 @@ class ExplicitUnjudgedQrelsTests(unittest.TestCase):
         }
         result = evaluate_metrics(rows, Protocol(cutoffs=(1, 2)), qrels)
         self.assertEqual(result["mrr@1"]["value"], 1)
-        self.assertEqual(result["mrr@2"]["eligible_query_ids"], ["known"])
-        self.assertEqual(result["mrr@2"]["excluded_queries"], 1)
-        self.assertEqual(result["mrr@2"]["status"], "partial")
+        self.assertEqual(result["mrr@2"]["eligible_query_ids"], ["known", "partial"])
+        self.assertEqual(result["mrr@2"]["value"], 1)
+        self.assertEqual(result["mrr@2"]["excluded_queries"], 0)
+        self.assertEqual(result["mrr@2"]["status"], "ok")
         self.assertEqual(result["ndcg@1"]["eligible_query_ids"], ["known"])
         self.assertAlmostEqual(result["ndcg@1"]["value"], 1 / 3)
         self.assertEqual(result["ndcg@1"]["reference"], "known_qrels_pool")

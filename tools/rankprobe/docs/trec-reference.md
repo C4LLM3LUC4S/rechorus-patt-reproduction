@@ -54,7 +54,7 @@ This case supports only exponential-gain NDCG on these small integer grades. It 
 | Situation | RankProbe | Pinned reference behavior |
 | --- | --- | --- |
 | Exact score tie | Ascending item ID by default; input order is an option | Descending document ID |
-| Missing candidate judgment | Kept unknown by default; affected metric/query may be excluded | These requested metrics treat the missing judgment as nonrelevant |
+| Missing candidate judgment | Kept unknown by default; MRR needs a known prefix through the first relevant item, while NDCG needs all candidate labels | These requested metrics treat the missing judgment as nonrelevant |
 | Query with no relevant judgments | Recall excludes it and reports why | Recall contributes zero to the macro average |
 | Qrels query without submitted predictions | Reports missing query and averages submitted, eligible queries | This pinned source exits with code 4 by default; `-c` includes the missing query as zero |
 | Exponential gain on small integer grades | Explicitly supported by RankProbe | Covered only by the separate bounded case above using transformed reference qrels |

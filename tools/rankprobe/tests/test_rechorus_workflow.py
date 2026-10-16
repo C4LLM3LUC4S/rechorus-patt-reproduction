@@ -114,7 +114,9 @@ def test_existing_npz_bridge_and_actual_cli_keep_contexts_and_unknowns(tmp_path)
     assert report["metrics"]["mrr@1"]["eligible_query_ids"] == ["query_000001"]
     assert report["metrics"]["mrr@1"]["excluded_query_ids"] == ["query_000002"]
     assert report["metrics"]["mrr@1"]["value"] == 1
-    assert report["metrics"]["mrr@2"]["value"] is None
+    assert report["metrics"]["mrr@2"]["value"] == 1
+    assert report["metrics"]["mrr@2"]["eligible_query_ids"] == ["query_000001"]
+    assert report["metrics"]["mrr@2"]["excluded_query_ids"] == ["query_000002"]
     assert report["metrics"]["ndcg@1"]["value"] is None
     assert report["metrics"]["recall@1"]["value"] is None
     assert report["protocol"]["qrels_complete"] is False
