@@ -1,6 +1,6 @@
 # Public context and independent examples
 
-Sources checked on 2026-10-15. The examples in this repository are original miniature constructions, not benchmark data or copies of another project's reproduction code.
+Sources checked on 2026-10-15 and 2026-10-16. The examples in this repository are original miniature constructions, not benchmark data or copies of another project's reproduction code.
 
 ## A retrieval export can appear better after losing a query
 
@@ -13,6 +13,8 @@ The same files contain an explicitly unjudged document and a query present only 
 [MTEB issue #5092](https://github.com/embeddings-benchmark/mteb/issues/5092) documents a constant-score case in which metric paths used inconsistent tie handling. Maintainers confirmed the report, merged [PR #5136](https://github.com/embeddings-benchmark/mteb/pull/5136), and later discussed comparability of older results. The issue is closed. This is a known, addressed upstream problem, not a new vulnerability discovered by RankProbe.
 
 Our `examples/ties.csv` illustrates the general order-dependence mechanism using invented IDs and scores. It does not reproduce the WebLINX benchmark or verify any current MTEB release. RankProbe's ascending-ID rule differs from `trec_eval`'s descending-ID rule; equal output is not promised.
+
+For an existing MTEB retrieval prediction file, the [bounded export recipe](mteb-workflow.md) explains which scores can enter the audit and which context must be retained separately. It addresses file selection, cache and scope boundaries; its source inspection and original shape checks are distinct from running MTEB or reevaluating historical results.
 
 ## Recommendation protocols are configurable
 

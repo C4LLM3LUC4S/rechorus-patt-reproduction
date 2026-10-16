@@ -12,6 +12,8 @@ Using RecBole nonsequential full-sort scores? The [safe export recipe](docs/recb
 
 Using ReChorus? The [runner capture recipes](docs/rechorus-workflow.md) preserve sampled candidates before the native top-100 presentation export, or explicitly handle masks in the checked base full-sort contract. Stable source identities are available for cross-run comparisons.
 
+Have saved MTEB retrieval predictions? The [score-file recipe](docs/mteb-workflow.md) selects one subset and split for the existing CSV interface, explains cache and output-folder choices, and distinguishes saved candidates from the later scoring stage. Metric-only result JSON is insufficient.
+
 ## Quick start
 
 Requires Python 3.10 or newer. Install from this checkout; no PyPI release is claimed.

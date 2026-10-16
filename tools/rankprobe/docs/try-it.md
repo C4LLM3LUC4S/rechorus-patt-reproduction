@@ -86,6 +86,8 @@ On macOS / Linux:
 
 This file boundary avoids moving a trained model into the core environment. Leave undeclared labels unknown; do not add `--unjudged nonrelevant`, `--other-candidates nonrelevant` or `--qrels-complete` merely to make metrics appear. Those options record distinct assumptions that require evidence. The report can still reveal structural findings when label-dependent metrics are unavailable.
 
+For saved MTEB retrieval predictions, use the [scope-specific score-file recipe](mteb-workflow.md). Its file conversion runs in the core environment and selects an explicit subset and split; a metrics-only MTEB result file cannot supply the candidate evidence.
+
 ## A short invitation you can forward
 
 > I am testing RankProbe, an early open-source offline audit tool for recommendation and retrieval evaluation exports. It takes CSV/JSONL or TREC-style runs and creates local HTML/JSON reports about ties, duplicate candidates, query coverage, and uncertain labels. Would you try one small export you are allowed to inspect and tell me whether it reveals anything useful? It takes no API key and does not upload your input. You do not need to share the source data or the whole report. The documented synthetic example is a safe first step. This is an alpha trial; it does not certify benchmark correctness.

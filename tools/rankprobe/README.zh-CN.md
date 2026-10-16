@@ -23,6 +23,8 @@ RankProbe 在本地读取候选分数及相关性标签，生成 HTML 和 JSON �
 
 使用 ReChorus 时，可按 [runner 捕获指南](docs/rechorus-workflow.md) 在默认 top-100 展示导出之前保存 sampled 候选，或按明确原因导出基础 full-sort 输入约定下的有效分数。跨 run 比较可显式保留事件与物品 ID；未知标签保持未知。
 
+已有 MTEB 检索预测文件时，可按 [分数文件接入指南](docs/mteb-workflow.md) 明确选择一个 subset 和 split，转入现有 CSV 接口，并核对缓存、输出目录和评分前后的候选范围。只有汇总指标的结果 JSON 无法恢复候选分数。
+
 ## 快速开始
 
 需要 Python 3.10 或以上版本。目前从本地源码安装，尚未声称已发布到 PyPI。
