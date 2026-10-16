@@ -6,6 +6,8 @@ RankProbe exposes its evaluation choices so that a change in protocol is visible
 
 Higher scores rank first. The default tie policy, `item_id`, sorts tied item IDs in ascending string order. The optional `input` policy preserves their order in the input file. Neither policy means the model distinguished tied items. Other evaluators can use different rules; `trec_eval` uses descending document IDs in the historical case linked in [known-cases.md](known-cases.md).
 
+Built-in Python integers, JSON integer values and ASCII integer text in prediction files, qrels and the CLI relevance threshold retain their integer precision. Decimal and scientific notation use binary64 floating point; writing a large integer with `.0` or an exponent can therefore round it. Inputs must remain finite within the accepted numeric range, and metric results are floating point. Reports generated before the unreleased integer-precision fix may have rounded grades or scores above `2**53`; preserve those reports and recompute affected inputs before comparison.
+
 A relevance value greater than zero is relevant for MRR and Recall. NDCG uses graded relevance with the chosen gain function:
 
 - `linear`: `gain(r) = r`.

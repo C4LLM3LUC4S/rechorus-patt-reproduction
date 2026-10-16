@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Preserved accepted integer scores, grades and relevance thresholds instead of rounding them through float. Adjacent large integers now retain ordering, label conflicts and threshold decisions; NDCG also avoids rounding an integer when mixed with an integer-valued float. Decimal/scientific notation and metric results remain floating point. Recompute affected older reports from their original inputs before comparison.
 - Prevented console-encoding failures from turning a completed audit into a traceback. Report paths and domain errors use escaped text only when the output stream cannot encode a character; UTF-8 output, files and finding-based exit statuses are preserved. Output I/O failures still propagate.
 - Made BEIR/RecBole/ReChorus export-to-core handoffs explicit across working directories. ReChorus sampled conversion can use its NumPy-only source helper in the existing model environment; the core audit consumes the recorded absolute file paths without installing a model framework. RecBole no longer asks for an unnecessary RankProbe installation in the model environment.
 - Kept the real TREC-COVID walkthrough on the first-report virtual-environment interpreter, with explicit Windows and macOS/Linux commands. Copying the audit command no longer relies on shell activation or the system Python having RankProbe installed.

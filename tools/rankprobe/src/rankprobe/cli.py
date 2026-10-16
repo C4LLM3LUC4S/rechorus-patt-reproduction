@@ -11,7 +11,7 @@ from typing import Sequence, TextIO
 
 from . import __version__
 from .audit import audit_run, compare_runs
-from .io import _input_format, read_predictions, read_qrels
+from .io import _float, _input_format, read_predictions, read_qrels
 from .model import Protocol
 from .report import write_report
 
@@ -36,6 +36,13 @@ def _cutoffs(value: str) -> tuple[int, ...]:
     if not numbers or any(item < 1 for item in numbers):
         raise argparse.ArgumentTypeError("cutoffs must be positive integers")
     return tuple(sorted(set(numbers)))
+
+
+def _threshold(value: str) -> int | float:
+    try:
+        return _float(value, "relevance threshold")
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
 def _run(value: str) -> tuple[str, Path]:
@@ -91,7 +98,7 @@ def _common(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--relevance-threshold",
-        type=float,
+        type=_threshold,
         default=0.0,
         help="binary relevance means label > threshold (default: 0)",
     )

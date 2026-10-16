@@ -73,7 +73,7 @@ def validate_inputs(
                 raise ValueError(
                     f"conflicting relevance for query {row.query_id!r}, item {row.item_id!r}"
                 )
-            labels[key] = float(row.relevance)
+            labels[key] = row.relevance
         if qrels is not None and row.query_id in qrels:
             judgments = qrels[row.query_id]
             if row.item_id in judgments and judgments[row.item_id] is not None:
@@ -126,7 +126,7 @@ def resolve_rows(rows: list[Row], protocol: Protocol, qrels: Qrels | None) -> li
                 relevance = 0.0
         if relevance is None and protocol.unjudged == "nonrelevant":
             relevance = 0.0
-        result.append(replace(row, relevance=None if relevance is None else float(relevance)))
+        result.append(replace(row, relevance=relevance))
     return result
 
 
@@ -164,6 +164,16 @@ def _reference_pool(
 
 
 def _ndcg(relevances: list[float], ideal_relevances: list[float], cutoff: int, gain: str) -> float:
+    # Integral floats represent exact integers. Normalize only these local
+    # gain inputs so mixing them with a larger int does not round that int.
+    relevances = [
+        int(rel) if isinstance(rel, float) and rel.is_integer() else rel
+        for rel in relevances
+    ]
+    ideal_relevances = [
+        int(rel) if isinstance(rel, float) and rel.is_integer() else rel
+        for rel in ideal_relevances
+    ]
     # Scaling every gain by the same positive factor preserves NDCG and avoids
     # overflow for very large but finite labels (including exponential gain).
     largest = max(ideal_relevances + relevances, default=0.0)

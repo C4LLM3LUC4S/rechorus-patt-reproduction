@@ -105,16 +105,36 @@ def _trec_records(path: Path, columns: int) -> Iterator[tuple[int, list[str]]]:
         raise InputError(f"{path}: cannot read input: {exc}") from exc
 
 
-def _float(value: object, field: str, *, optional: bool = False) -> float | None:
+def _float(value: object, field: str, *, optional: bool = False) -> int | float | None:
     if optional and (value is None or value == ""):
         return None
     if isinstance(value, bool) or value is None or isinstance(value, (list, dict)):
         raise ValueError(f"{field} must be a finite number")
     try:
-        result = float(value)
+        if isinstance(value, int):
+            result = value
+        elif isinstance(value, str):
+            token = value.strip()
+            digits = token[1:] if token[:1] in {"+", "-"} else token
+            if digits.isascii() and digits.isdigit():
+                # Strip redundant zeroes before int's digit limit, retaining
+                # the existing float sign for a textual negative zero.
+                significant = digits.lstrip("0") or "0"
+                if token.startswith("-") and significant == "0":
+                    result = -0.0
+                else:
+                    result = int(significant)
+                    if token.startswith("-"):
+                        result = -result
+            else:
+                # Decimal/exponent syntax keeps the binary64 contract.
+                result = float(value)
+        else:
+            result = float(value)
+        finite = math.isfinite(result)
     except (ValueError, TypeError, OverflowError) as exc:
         raise ValueError(f"{field} must be a finite number") from exc
-    if not math.isfinite(result):
+    if not finite:
         raise ValueError(f"{field} must be a finite number")
     return result
 
