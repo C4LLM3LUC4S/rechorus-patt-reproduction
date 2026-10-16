@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Prevented console-encoding failures from turning a completed audit into a traceback. Report paths and domain errors use escaped text only when the output stream cannot encode a character; UTF-8 output, files and finding-based exit statuses are preserved. Output I/O failures still propagate.
 - Made BEIR/RecBole/ReChorus export-to-core handoffs explicit across working directories. ReChorus sampled conversion can use its NumPy-only source helper in the existing model environment; the core audit consumes the recorded absolute file paths without installing a model framework. RecBole no longer asks for an unnecessary RankProbe installation in the model environment.
 - Kept the real TREC-COVID walkthrough on the first-report virtual-environment interpreter, with explicit Windows and macOS/Linux commands. Copying the audit command no longer relies on shell activation or the system Python having RankProbe installed.
 - Added a complete, isolated installation recipe for the optional MTEB check. It shares 19 dependency requests with CI, which records installed package names/versions and exercises the documented CLI. The source distribution includes the dependency file; the requests and snapshot are not a full dependency lock.

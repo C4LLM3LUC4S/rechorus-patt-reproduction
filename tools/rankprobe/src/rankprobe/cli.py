@@ -7,13 +7,23 @@ from datetime import datetime, timezone
 import hashlib
 from pathlib import Path
 import sys
-from typing import Sequence
+from typing import Sequence, TextIO
 
 from . import __version__
 from .audit import audit_run, compare_runs
 from .io import _input_format, read_predictions, read_qrels
 from .model import Protocol
 from .report import write_report
+
+
+def _console(message: str, *, file: TextIO | None = None) -> None:
+    stream = sys.stdout if file is None else file
+    try:
+        print(message, file=stream)
+    except UnicodeEncodeError:
+        encoding = stream.encoding or "ascii"
+        escaped = message.encode(encoding, errors="backslashreplace").decode(encoding)
+        print(escaped, file=stream)
 
 
 def _cutoffs(value: str) -> tuple[int, ...]:
@@ -274,17 +284,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         }
         json_path, html_path = write_report(report, arguments.out, overwrite=arguments.overwrite)
     except (ValueError, OSError) as exc:
-        print(f"rankprobe: {exc}", file=sys.stderr)
+        _console(f"rankprobe: {exc}", file=sys.stderr)
         return 2
     counts = {
         severity: sum(finding.get("severity") == severity for finding in report.get("findings", []))
         for severity in ("error", "warning", "info")
     }
-    print(
+    _console(
         f"RankProbe: {counts['error']} errors, {counts['warning']} warnings, {counts['info']} informational findings"
     )
-    print(f"HTML: {html_path.resolve()}")
-    print(f"JSON: {json_path.resolve()}")
+    _console(f"HTML: {html_path.resolve()}")
+    _console(f"JSON: {json_path.resolve()}")
     return _finding_exit(report, arguments.fail_on)
 
 
