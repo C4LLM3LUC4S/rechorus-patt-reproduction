@@ -350,34 +350,19 @@ jobs:
           done
           echo "RankProbe package was not found"
           exit 1
+      - name: Create a fresh optional framework environment
+        run: |
+          environment="$RUNNER_TEMP/rankprobe-mteb-venv"
+          test ! -e "$environment"
+          python -m venv "$environment"
+          echo "$environment/bin" >> "$GITHUB_PATH"
       - name: Install core and bounded CPU framework dependencies
         working-directory: ${{ steps.package.outputs.root }}
         run: |
           python -m pip install "setuptools==80.9.0" "wheel==0.45.1"
-          python -m pip install .
-          python -m pip install "torch==2.8.0" --index-url https://download.pytorch.org/whl/cpu
-          cat > "$RUNNER_TEMP/rankprobe-mteb-constraints.txt" <<'PINS'
-          torch==2.8.0+cpu
-          datasets==3.6.0
-          numpy==2.2.6
-          requests==2.32.5
-          scikit-learn==1.7.2
-          scipy==1.16.2
-          sentence-transformers==5.1.1
-          transformers==4.57.1
-          typing-extensions==4.15.0
-          tqdm==4.67.1
-          rich==14.1.0
-          pytrec-eval-terrier==0.5.10
-          pydantic==2.11.9
-          polars==1.33.1
-          pyarrow==20.0.0
-          pandas==2.2.3
-          huggingface-hub==0.35.3
-          tokenizers==0.22.1
-          safetensors==0.6.2
-          PINS
-          python -m pip install -r "$RUNNER_TEMP/rankprobe-mteb-constraints.txt" -c "$RUNNER_TEMP/rankprobe-mteb-constraints.txt"
+          python -m pip install --no-build-isolation .
+          python -m pip install "torch==2.8.0+cpu" --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r scripts/mteb-requirements.txt -c scripts/mteb-requirements.txt
       - name: Verify and install fixed MTEB source
         run: |
           archive="$RUNNER_TEMP/rankprobe-mteb-source.tar.gz"
@@ -385,6 +370,39 @@ jobs:
           printf '%s  %s\n' "$MTEB_SHA256" "$archive" | sha256sum --check
           python -m pip install --no-build-isolation --no-deps "$archive"
           python -m pip check
+      - name: Record installed names and versions without framework imports
+        run: |
+          python -I - <<'PY'
+          import importlib.metadata as metadata
+          import json
+          import os
+          from pathlib import Path
+          import platform
+          import sys
+          framework_roots = {"mteb", "torch", "datasets", "transformers", "huggingface_hub"}
+          assert not framework_roots.intersection(name.split(".")[0] for name in sys.modules)
+          snapshot = {
+              "schema_version": 1,
+              "scope": "visible installed distributions; not a lock or artifact hash verification",
+              "python": platform.python_version(),
+              "implementation": platform.python_implementation(),
+              "system": platform.system(),
+              "machine": platform.machine(),
+              "packages": sorted(
+                  ({"name": distribution.metadata["Name"], "version": distribution.version}
+                   for distribution in metadata.distributions()),
+                  key=lambda package: (package["name"].lower(), package["version"]),
+              ),
+          }
+          names = {package["name"].lower().replace("_", "-") for package in snapshot["packages"]}
+          assert {"pip", "setuptools", "wheel", "huggingface-hub", "pandas", "pyarrow",
+                  "safetensors", "tokenizers", "mteb", "rankprobe"} <= names
+          assert not framework_roots.intersection(name.split(".")[0] for name in sys.modules)
+          destination = Path(os.environ["RUNNER_TEMP"]) / "rankprobe-mteb-environment.json"
+          with destination.open("x", encoding="utf-8") as handle:
+              json.dump(snapshot, handle, indent=2, allow_nan=False)
+          print(json.dumps(snapshot, indent=2, allow_nan=False))
+          PY
       - name: Verify installed framework source without importing it
         run: |
           python - <<'PY'
@@ -410,23 +428,14 @@ jobs:
           PY
       - name: Exercise real offline evaluation, saved predictions and copied guide
         working-directory: ${{ steps.package.outputs.root }}
-        run: |
-          python - <<'PY'
-          import importlib.util
-          import json
-          import os
-          from pathlib import Path
-          spec = importlib.util.spec_from_file_location("mteb_workflow_gate", "scripts/check_mteb_workflow.py")
-          gate = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(gate)
-          result = gate.check_workflow(Path(os.environ["RUNNER_TEMP"]) / "rankprobe-mteb-workflow")
-          print(json.dumps(result, indent=2, allow_nan=False))
-          PY
+        run: python scripts/check_mteb_workflow.py --out "$RUNNER_TEMP/rankprobe-mteb-workflow"
       - name: Save aggregate synthetic workflow evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mteb-workflow-summary
-          path: ${{ runner.temp }}/rankprobe-mteb-workflow/summary.json
+          path: |
+            ${{ runner.temp }}/rankprobe-mteb-workflow/summary.json
+            ${{ runner.temp }}/rankprobe-mteb-environment.json
           if-no-files-found: ignore
           retention-days: 14

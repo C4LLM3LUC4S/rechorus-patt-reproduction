@@ -137,14 +137,46 @@ Current [MTEB MRR](https://github.com/embeddings-benchmark/mteb/blob/a689529bef7
 
 ## Optional synthetic native check
 
-In an isolated environment containing the full pinned MTEB dependencies and an installed RankProbe, run from this checkout:
+Converting an existing prediction file above requires only RankProbe's core. The following optional check installs and runs MTEB itself; use a separate environment so it does not change your research environment.
+
+The tested installation target is **Ubuntu 24.04, x86_64, Python 3.12**. MTEB 2.26.1 [declares Python >=3.11,<3.15](https://github.com/embeddings-benchmark/mteb/blob/a689529bef70dae42c0747105154c10b00c63879/pyproject.toml); other Python, operating-system and architecture combinations are not established by this check. RankProbe's core still supports Python 3.10. The framework installation needs internet access and substantially more disk space and dependencies than the core; no paid service, pretrained weights or benchmark dataset are needed.
+
+From this checkout's package folder, run the following in a POSIX shell with Python 3.12, `curl` and `sha256sum` available. The work folder must be new. It is under the already ignored `.tooling/` directory; if installation fails, retain the error and use a different new folder for a clean retry.
 
 ```sh
-python scripts/check_mteb_workflow.py --out mteb-workflow-example
+set -eu
+work=.tooling/mteb-native
+if [ -e "$work" ] || [ -L "$work" ]; then
+    echo "Choose a new work folder; this one already exists."
+    exit 1
+fi
+mkdir -p "$work"
+python3.12 -m venv "$work/venv"
+py="$work/venv/bin/python"
+"$py" -m pip install "setuptools==80.9.0" "wheel==0.45.1"
+"$py" -m pip install --no-build-isolation .
+"$py" -m pip install "torch==2.8.0+cpu" --index-url https://download.pytorch.org/whl/cpu
+"$py" -m pip install -r scripts/mteb-requirements.txt -c scripts/mteb-requirements.txt
+
+archive="$work/mteb-source.tar.gz"
+curl --fail --location --retry 2 \
+    https://codeload.github.com/embeddings-benchmark/mteb/tar.gz/a689529bef70dae42c0747105154c10b00c63879 \
+    --output "$archive"
+printf '%s  %s\n' \
+    b5e751e0f763a28e5bd2595b3bf392c981d5d6a884b0d535ae3a439d54ecaf4e \
+    "$archive" | sha256sum --check
+"$py" -m pip install --no-build-isolation --no-deps "$archive"
+"$py" -m pip check
+"$py" -m pip list --disable-pip-version-check --format=json > "$work/installed-packages.json"
+"$py" scripts/check_mteb_workflow.py --out "$work/workflow"
 ```
 
-The output directory must be new and its parent must exist. This optional check needs Python 3.11 or newer; RankProbe's core still supports Python 3.10. The full framework import has substantially more dependencies than the core. The separate Ubuntu/Python 3.12 CI job pins CPU Torch, verifies the source archive and eight installed source files, runs `pip check`, and limits the job to 20 minutes. Its dependency installation is online; the actual exercise isolates caches and blocks runtime network access. These packages do not become core dependencies.
+The [19 shared dependency requests](../scripts/mteb-requirements.txt) are used by this recipe and CI. They cover selected direct and transitive packages, not the entire dependency graph. `pip check` verifies declared dependency compatibility in the current environment; it does not lock future resolutions or verify package artifact hashes. `installed-packages.json` records visible installed names and versions for diagnosis, not a portable lock. Keep it and the installation error when reporting a failure; do not share tokens, pip configuration or your environment variables.
+
+On success, inspect `$work/workflow/summary.json`, `score-only/report.html` and `sparse-judgments/report.html` under that workflow folder. The checker requires a new output directory with an existing parent and refuses linked ancestors. Do not delete an older report to make the command pass: choose a new output name or a new work folder.
+
+The separate CI job also creates a fresh virtual environment, uses the shared requests, verifies the source archive and eight installed source files, runs `pip check`, and invokes the checker through the CLI above. Its dependency installation is online; the actual exercise isolates caches and blocks runtime network access. A 20-minute job limit is a timeout, not an expected installation duration. These packages do not become core dependencies.
 
 The check uses the official `MockRetrievalTask` class and untrained random encoder over original in-memory queries, documents and sparse judgments. It runs one `test` split through actual `mteb.evaluate`, saves predictions, executes the copied conversion code above and runs the real RankProbe CLI. Identical document text under different IDs supplies a deliberate tie control. Score-only and separate sparse-judgment reports must preserve unknowns and avoid assumptions; they do not establish native metric equality. No pretrained weights or benchmark dataset are needed for this bounded path.
 
-The source archive SHA256 is `b5e751e0f763a28e5bd2595b3bf392c981d5d6a884b0d535ae3a439d54ecaf4e`. An aggregate summary is retained as a CI artifact. Inspect the current commit's run before treating the installation or exercise as passed. Actual framework execution on synthetic inputs remains separate from an outside user's real export, independent adoption or measured human time saved.
+The source archive SHA256 is `b5e751e0f763a28e5bd2595b3bf392c981d5d6a884b0d535ae3a439d54ecaf4e`. The `mteb-workflow-summary` CI artifact retains the aggregate summary and `rankprobe-mteb-environment.json`. The latter records visible distribution names/versions and Python implementation/version, OS and architecture before framework imports; it omits installation URLs, paths, pip configuration and environment variables. Duplicate distribution names remain separate entries. Neither snapshot captures a full artifact lock or certifies framework correctness. Inspect the current commit's run before treating installation or the exercise as passed. Actual framework execution on synthetic inputs remains separate from an outside user's real export, independent adoption or measured human time saved.
