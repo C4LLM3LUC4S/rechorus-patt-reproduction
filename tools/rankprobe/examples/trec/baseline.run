@@ -1,0 +1,7 @@
+# Original synthetic retrieval case. Declared ranks do not resolve score ties.
+q1 Q0 doc_b 1 1.0 baseline
+q1 Q0 doc_a 2 1.0 baseline
+q2 Q0 doc_e 1 0.9 baseline
+q2 Q0 doc_f 2 0.8 baseline
+q3 Q0 doc_x 1 0.8 baseline
+q3 Q0 doc_y 2 0.5 baseline

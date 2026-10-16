@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use RankProbe, cite this software and record the exact commit."
+title: "RankProbe: Inspectable audits of exported ranking evaluations"
+type: software
+authors:
+  - given-names: "Borui"
+    family-names: "Ma"
+    alias: "C4LLM3LUC4S"
+version: 0.1.0a4
+abstract: >-
+  A local tool for inspecting candidate-score ties, duplicated items, relevance
+  coverage, and run comparability in exported ranking evaluations. The software
+  reports its evaluation assumptions and does not certify complete experiments.

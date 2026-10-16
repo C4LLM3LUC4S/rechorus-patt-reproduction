@@ -1,0 +1,9 @@
+# Original synthetic judgments. -1 is explicitly unknown, not nonrelevant.
+q1 0 doc_a 0
+q1 0 doc_b 1
+q2 0 doc_d 1
+q2 0 doc_e 0
+q2 0 doc_f 0
+q3 0 doc_x -1
+q3 0 doc_y 1
+q4 0 doc_z 1

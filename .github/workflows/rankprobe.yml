@@ -1,0 +1,441 @@
+name: Tests and package
+
+on:
+  push:
+    branches: [main]
+    tags: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python ${{ matrix.python }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.10', '3.12', '3.13']
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Locate package
+        id: package
+        run: |
+          for candidate in . tools/rankprobe; do
+            if [ -f "$candidate/pyproject.toml" ] && [ -d "$candidate/src/rankprobe" ]; then
+              echo "root=$candidate" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "RankProbe package was not found"
+          exit 1
+      - name: Install development dependencies
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python -m pip install -e ".[dev,adapters]"
+      - name: Tests
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python -m pytest
+      - name: Python lint
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python -m ruff check .
+      - name: Build wheel and source distribution
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python -m build
+      - name: Check distribution integrity and example coverage
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python scripts/check_distribution.py
+      - name: Install and exercise built wheel in isolation
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python scripts/check_wheel_install.py --wheel dist/*.whl
+
+  trec-reference:
+    name: Pinned NIST trec_eval reference
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      LC_ALL: C
+      REFERENCE_COMMIT: ba38899cbd4de0fb699b47f39b64ef1c107e4a5c
+      REFERENCE_SHA256: d603cd657950aebea3a5ed08cee5ea0e5e836012ed5eb63303d3a7d66e49ba6a
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Locate package
+        id: package
+        run: |
+          for candidate in . tools/rankprobe; do
+            if [ -f "$candidate/pyproject.toml" ] && [ -d "$candidate/src/rankprobe" ]; then
+              echo "root=$candidate" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "RankProbe package was not found"
+          exit 1
+      - name: Install RankProbe core
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python -m pip install .
+      - name: Download and verify pinned reference source
+        id: reference
+        run: |
+          archive="$RUNNER_TEMP/rankprobe-trec-reference.tar.gz"
+          reference_dir="$RUNNER_TEMP/rankprobe-trec-reference"
+          curl --fail --location --retry 2 "https://codeload.github.com/usnistgov/trec_eval/tar.gz/$REFERENCE_COMMIT" --output "$archive"
+          printf '%s  %s\n' "$REFERENCE_SHA256" "$archive" | sha256sum --check
+          mkdir -p "$reference_dir"
+          tar -xzf "$archive" -C "$reference_dir" --strip-components=1
+          echo "source=$reference_dir" >> "$GITHUB_OUTPUT"
+      - name: Build and self-test official reference
+        env:
+          REFERENCE_DIR: ${{ steps.reference.outputs.source }}
+        run: |
+          gcc --version
+          make -C "$REFERENCE_DIR" CC=gcc trec_eval
+          make -C "$REFERENCE_DIR" CC=gcc quicktest
+          "$REFERENCE_DIR/trec_eval" -v
+          sha256sum "$REFERENCE_DIR/trec_eval"
+      - name: Check shared metrics and protocol boundaries
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python scripts/check_trec_eval.py --trec-eval "${{ steps.reference.outputs.source }}/trec_eval" --summary "$RUNNER_TEMP/rankprobe-reference-result.json"
+      - name: Check real TREC-COVID protocol against pinned reference
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python scripts/check_trec_covid.py --trec-eval "${{ steps.reference.outputs.source }}/trec_eval" --inputs-dir "$RUNNER_TEMP/rankprobe-trec-covid-inputs" --fetch --summary "$RUNNER_TEMP/rankprobe-trec-covid-result.json"
+      - name: Save reference check summary
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: trec-eval-reference
+          path: |
+            ${{ runner.temp }}/rankprobe-reference-result.json
+            ${{ runner.temp }}/rankprobe-trec-covid-result.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  beir-workflow:
+    name: Pinned BEIR export and evaluation workflow
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    env:
+      LC_ALL: C.UTF-8
+      BEIR_COMMIT: ef83d29307061c65d04b035b4f4e7c18bd8374af
+      BEIR_SHA256: 93be775e8bb6c857883e77e3a3a01f4748e6498a341fc436416b547e35d5a75b
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Locate package
+        id: package
+        run: |
+          for candidate in . tools/rankprobe; do
+            if [ -f "$candidate/pyproject.toml" ] && [ -d "$candidate/src/rankprobe" ]; then
+              echo "root=$candidate" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "RankProbe package was not found"
+          exit 1
+      - name: Install RankProbe core
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python -m pip install .
+      - name: Install only optional export and evaluation dependencies
+        run: |
+          python -m pip install "torch==2.8.0" --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install "pytrec_eval_terrier==0.5.10" "requests==2.32.5" "tqdm==4.67.1" "numpy==2.2.6"
+      - name: Verify and install pinned BEIR source
+        run: |
+          archive="$RUNNER_TEMP/rankprobe-beir-source.tar.gz"
+          curl --fail --location --retry 2 "https://codeload.github.com/beir-cellar/beir/tar.gz/$BEIR_COMMIT" --output "$archive"
+          printf '%s  %s\n' "$BEIR_SHA256" "$archive" | sha256sum --check
+          python -m pip install --no-deps "$archive"
+      - name: Verify installed export and evaluation source bytes
+        run: |
+          python - <<'PY'
+          import hashlib
+          import importlib.util
+          from pathlib import Path
+          expected = {
+              "util.py": "2bd59ef892ea1a68be07adf4b6c18d9036c5a6b9706dcffdb672267653e00bc4",
+              "retrieval/evaluation.py": "f346bd20f258e552895e438257e3cc91308b65e0b1ee6c09422e987084bc3bd0",
+          }
+          root = Path(importlib.util.find_spec("beir").origin).parent
+          for name, digest in expected.items():
+              actual = hashlib.sha256((root / name).read_bytes()).hexdigest()
+              assert actual == digest, f"Installed BEIR source differs: {name}"
+              print(f"Verified BEIR {name}: {actual}")
+          PY
+      - name: Exercise actual BEIR helpers and RankProbe CLI
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python scripts/check_beir_workflow.py --out "$RUNNER_TEMP/rankprobe-beir-workflow"
+      - name: Save original synthetic integration example and reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: beir-workflow-example
+          path: ${{ runner.temp }}/rankprobe-beir-workflow
+          if-no-files-found: ignore
+          retention-days: 14
+
+  recbole-workflow:
+    name: Pinned RecBole masked-score export workflow
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    env:
+      LC_ALL: C.UTF-8
+      RECBOLE_COMMIT: 7b02be5ec80a88310f2d04a27a82adfcbb5dc211
+      RECBOLE_SHA256: dcd778a920773821e0e1816d06735c79413f2f44a470eab9b119b1435d9c74da
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Locate package
+        id: package
+        run: |
+          for candidate in . tools/rankprobe; do
+            if [ -f "$candidate/pyproject.toml" ] && [ -d "$candidate/src/rankprobe" ]; then
+              echo "root=$candidate" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "RankProbe package was not found"
+          exit 1
+      - name: Install RankProbe and optional array support
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python -m pip install '.[adapters]'
+      - name: Install CPU helper import dependencies
+        run: |
+          python -m pip install "torch==2.8.0" --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install "numpy==2.2.6" "pandas==2.2.3" "tensorboard==2.20.0" "texttable==1.7.0" "colorlog==4.7.2" "colorama==0.4.4"
+      - name: Verify and install pinned RecBole source
+        run: |
+          archive="$RUNNER_TEMP/rankprobe-recbole-source.tar.gz"
+          curl --fail --location --retry 2 "https://codeload.github.com/RUCAIBox/RecBole/tar.gz/$RECBOLE_COMMIT" --output "$archive"
+          printf '%s  %s\n' "$RECBOLE_SHA256" "$archive" | sha256sum --check
+          python -m pip install --no-deps "$archive"
+      - name: Verify installed scoring helper source bytes
+        run: |
+          python - <<'PY'
+          import hashlib
+          import importlib.util
+          from pathlib import Path
+          root = Path(importlib.util.find_spec("recbole").origin).parent
+          actual = hashlib.sha256((root / "utils/case_study.py").read_bytes()).hexdigest()
+          assert actual == "a3690b50c6aee1570632c43db7ba02f5b9307f9e14585960d0815f62e44c0f68", "Installed RecBole helper source differs"
+          print(f"Verified RecBole case_study.py: {actual}")
+          PY
+      - name: Exercise real scoring helpers, safe export and RankProbe CLI
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python scripts/check_recbole_workflow.py --out "$RUNNER_TEMP/rankprobe-recbole-workflow"
+      - name: Save original synthetic integration example and reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: recbole-workflow-example
+          path: ${{ runner.temp }}/rankprobe-recbole-workflow
+          if-no-files-found: ignore
+          retention-days: 14
+
+  rechorus-workflow:
+    name: Pinned ReChorus sampled-score capture workflow
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    env:
+      LC_ALL: C.UTF-8
+      RECHORUS_COMMIT: c164ec4303cc20ddcfbd1b57de366a481811d1e5
+      RECHORUS_SHA256: 0e66340a9d496ca6277ded4f6f0b51f92bf739eba4f26a14d1e8a26cb0c75cd1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Locate package
+        id: package
+        run: |
+          for candidate in . tools/rankprobe; do
+            if [ -f "$candidate/pyproject.toml" ] && [ -d "$candidate/src/rankprobe" ]; then
+              echo "root=$candidate" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "RankProbe package was not found"
+          exit 1
+      - name: Install RankProbe and optional array support
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python -m pip install '.[adapters]'
+      - name: Install CPU runner import dependencies
+        run: |
+          python -m pip install "torch==2.8.0" --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install "numpy==2.2.6" "pandas==2.2.3" "tqdm==4.67.1"
+      - name: Verify source archive and extract only source subtree
+        id: upstream
+        run: |
+          archive="$RUNNER_TEMP/rankprobe-rechorus-source.tar.gz"
+          source_dir="$RUNNER_TEMP/rankprobe-rechorus-source"
+          curl --fail --location --retry 2 "https://codeload.github.com/THUwangcy/ReChorus/tar.gz/$RECHORUS_COMMIT" --output "$archive"
+          printf '%s  %s\n' "$RECHORUS_SHA256" "$archive" | sha256sum --check
+          mkdir -p "$source_dir"
+          tar -xzf "$archive" -C "$source_dir" --strip-components=1 --wildcards '*/src/*'
+          test ! -e "$source_dir/data"
+          echo "source=$source_dir" >> "$GITHUB_OUTPUT"
+      - name: Exercise actual dataset, runner, existing exporter and RankProbe CLI
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python scripts/check_rechorus_workflow.py --source "${{ steps.upstream.outputs.source }}" --out "$RUNNER_TEMP/rankprobe-rechorus-workflow"
+      - name: Save original synthetic integration example and reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rechorus-workflow-example
+          path: ${{ runner.temp }}/rankprobe-rechorus-workflow
+          if-no-files-found: ignore
+          retention-days: 14
+
+  mteb-workflow:
+    name: Pinned MTEB synthetic prediction workflow
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      LC_ALL: C.UTF-8
+      MTEB_COMMIT: a689529bef70dae42c0747105154c10b00c63879
+      MTEB_SHA256: b5e751e0f763a28e5bd2595b3bf392c981d5d6a884b0d535ae3a439d54ecaf4e
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Locate package
+        id: package
+        run: |
+          for candidate in . tools/rankprobe; do
+            if [ -f "$candidate/pyproject.toml" ] && [ -d "$candidate/src/rankprobe" ]; then
+              echo "root=$candidate" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "RankProbe package was not found"
+          exit 1
+      - name: Create a fresh optional framework environment
+        run: |
+          environment="$RUNNER_TEMP/rankprobe-mteb-venv"
+          test ! -e "$environment"
+          python -m venv "$environment"
+          echo "$environment/bin" >> "$GITHUB_PATH"
+      - name: Install core and bounded CPU framework dependencies
+        working-directory: ${{ steps.package.outputs.root }}
+        run: |
+          python -m pip install "setuptools==80.9.0" "wheel==0.45.1"
+          python -m pip install --no-build-isolation .
+          python -m pip install "torch==2.8.0+cpu" --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r scripts/mteb-requirements.txt -c scripts/mteb-requirements.txt
+      - name: Verify and install fixed MTEB source
+        run: |
+          archive="$RUNNER_TEMP/rankprobe-mteb-source.tar.gz"
+          curl --fail --location --retry 2 "https://codeload.github.com/embeddings-benchmark/mteb/tar.gz/$MTEB_COMMIT" --output "$archive"
+          printf '%s  %s\n' "$MTEB_SHA256" "$archive" | sha256sum --check
+          python -m pip install --no-build-isolation --no-deps "$archive"
+          python -m pip check
+      - name: Record installed names and versions without framework imports
+        run: |
+          python -I - <<'PY'
+          import importlib.metadata as metadata
+          import json
+          import os
+          from pathlib import Path
+          import platform
+          import sys
+          framework_roots = {"mteb", "torch", "datasets", "transformers", "huggingface_hub"}
+          assert not framework_roots.intersection(name.split(".")[0] for name in sys.modules)
+          snapshot = {
+              "schema_version": 1,
+              "scope": "visible installed distributions; not a lock or artifact hash verification",
+              "python": platform.python_version(),
+              "implementation": platform.python_implementation(),
+              "system": platform.system(),
+              "machine": platform.machine(),
+              "packages": sorted(
+                  ({"name": distribution.metadata["Name"], "version": distribution.version}
+                   for distribution in metadata.distributions()),
+                  key=lambda package: (package["name"].lower(), package["version"]),
+              ),
+          }
+          names = {package["name"].lower().replace("_", "-") for package in snapshot["packages"]}
+          assert {"pip", "setuptools", "wheel", "huggingface-hub", "pandas", "pyarrow",
+                  "safetensors", "tokenizers", "mteb", "rankprobe"} <= names
+          assert not framework_roots.intersection(name.split(".")[0] for name in sys.modules)
+          destination = Path(os.environ["RUNNER_TEMP"]) / "rankprobe-mteb-environment.json"
+          with destination.open("x", encoding="utf-8") as handle:
+              json.dump(snapshot, handle, indent=2, allow_nan=False)
+          print(json.dumps(snapshot, indent=2, allow_nan=False))
+          PY
+      - name: Verify installed framework source without importing it
+        run: |
+          python - <<'PY'
+          import hashlib
+          import importlib.metadata
+          import importlib.util
+          from pathlib import Path
+          assert importlib.metadata.version("mteb") == "2.26.1"
+          root = Path(importlib.util.find_spec("mteb").origin).parent
+          expected = {
+              "abstasks/abstask.py": "062ba8dca07de93fafb85d72003d4e989e217fa9f3d412bb59effda81c1fb4c0",
+              "abstasks/retrieval.py": "c3cfe12420c22ebd8e67e44ee00d42f3a6b33c9fea4fe7c5f49590d5f0c1258d",
+              "evaluate.py": "90ee8d22cf5522f4cf45484fcbe75677c9884a687bc12b54b923f496cf952699",
+              "_evaluators/retrieval_evaluator.py": "1a23a0f753b5d99bbca516a8660fbac63a2245f9feffd160398b8c9b90d82b0e",
+              "_evaluators/retrieval_metrics.py": "b1db2261db0a601a0420d561a67bc763c084b985d4aa0ea3343fa1badbdda338",
+              "models/model_meta.py": "1270d11e0f8009522ef2498a47e0e90181accc520e23c654ba42877089bd6e97",
+              "mocks/mock_tasks/retrieval.py": "f86bf7ed6e332671fdea3fd459dc13860bc6355e300b8b0c3837136696d544df",
+              "models/model_implementations/random_baseline.py": "353275b890ddf78565e7aa3b2c876e51897d5ffc86d89ff026db9fc2f730d76a",
+          }
+          for relative, digest in expected.items():
+              assert hashlib.sha256((root / relative).read_bytes()).hexdigest() == digest, relative
+          print("MTEB fixed-source checks passed:", len(expected))
+          PY
+      - name: Exercise real offline evaluation, saved predictions and copied guide
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python scripts/check_mteb_workflow.py --out "$RUNNER_TEMP/rankprobe-mteb-workflow"
+      - name: Save aggregate synthetic workflow evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mteb-workflow-summary
+          path: |
+            ${{ runner.temp }}/rankprobe-mteb-workflow/summary.json
+            ${{ runner.temp }}/rankprobe-mteb-environment.json
+          if-no-files-found: ignore
+          retention-days: 14

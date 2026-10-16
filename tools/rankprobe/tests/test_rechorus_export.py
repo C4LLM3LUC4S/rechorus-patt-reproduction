@@ -1,0 +1,307 @@
+from __future__ import annotations
+
+import csv
+import importlib.util
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+import pytest
+
+from rankprobe import Protocol, audit_run, compare_runs
+from rankprobe.io import read_predictions
+
+np = pytest.importorskip("numpy")
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "export_rechorus.py"
+SPEC = importlib.util.spec_from_file_location("export_rechorus", SCRIPT)
+exporter = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(exporter)
+
+
+def write_npz(tmp_path, **arrays):
+    source = tmp_path / "predictions.npz"
+    np.savez(source, **arrays)
+    return source
+
+
+def test_queries_are_events_not_users_and_ids_are_remapped(tmp_path):
+    source = write_npz(
+        tmp_path,
+        scores=np.array([[0.9, 0.2], [0.8, 0.1]]),
+        item_id=np.array([[987654321, 345678912], [345678912, 987654321]]),
+        user_id=np.array([123456789, 123456789]),
+    )
+    before = source.read_bytes()
+    out = tmp_path / "export.csv"
+    metadata = exporter.export_npz(source, out, positive_index=0)
+    rows = list(csv.DictReader(out.open(encoding="utf-8")))
+    assert [row["query_id"] for row in rows] == [
+        "query_000001",
+        "query_000001",
+        "query_000002",
+        "query_000002",
+    ]
+    assert rows[1]["relevance"] == ""
+    assert rows[0]["item_id"] == rows[3]["item_id"]
+    assert "123456789" not in out.read_text(encoding="utf-8")
+    assert "987654321" not in out.read_text(encoding="utf-8")
+    assert metadata["qrels_complete"] is False
+    assert source.read_bytes() == before
+
+
+def test_explicit_negative_assumption_and_limit(tmp_path):
+    source = write_npz(
+        tmp_path,
+        scores=np.array([[0.1, 0.9], [0.8, 0.2]]),
+        item_id=np.array([[10, 20], [30, 40]]),
+    )
+    out = tmp_path / "export.csv"
+    metadata = exporter.export_npz(
+        source, out, positive_index=1, other_candidates="nonrelevant", limit_queries=1
+    )
+    rows = list(csv.DictReader(out.open(encoding="utf-8")))
+    assert [row["relevance"] for row in rows] == ["0", "1"]
+    assert metadata["source_queries"] == 2
+    assert metadata["exported_queries"] == 1
+
+
+@pytest.mark.parametrize(
+    "scores,items",
+    [
+        (np.array([[float("nan"), 0.3]]), np.array([[1, 2]])),
+        (np.array([0.2, 0.3]), np.array([1, 2])),
+        (np.array([[0.2, 0.3]]), np.array([[1, 1]])),
+    ],
+)
+def test_invalid_matrices_are_rejected_without_output(tmp_path, scores, items):
+    source = write_npz(tmp_path, scores=scores, item_id=items)
+    out = tmp_path / "export.csv"
+    with pytest.raises(ValueError):
+        exporter.export_npz(source, out, positive_index=0)
+    assert not out.exists()
+
+
+def test_cannot_overwrite_source_or_existing_output(tmp_path):
+    source = write_npz(tmp_path, scores=np.array([[0.9, 0.2]]), item_id=np.array([[1, 2]]))
+    with pytest.raises(ValueError, match="source NPZ"):
+        exporter.export_npz(source, source, positive_index=0, overwrite=True)
+    out = tmp_path / "export.csv"
+    exporter.export_npz(source, out, positive_index=0)
+    with pytest.raises(ValueError, match="already exists"):
+        exporter.export_npz(source, out, positive_index=0)
+
+
+def test_pickle_arrays_are_not_loaded(tmp_path):
+    source = write_npz(
+        tmp_path, scores=np.array([[0.9, 0.2]]), item_id=np.array([[{}, {}]], dtype=object)
+    )
+    with pytest.raises(ValueError):
+        exporter.export_npz(source, tmp_path / "export.csv", positive_index=0)
+
+
+def test_source_identity_exposes_different_physical_pools_hidden_by_local_names(tmp_path):
+    exported = {"local": {}, "source": {}}
+    for run, physical_items in (("left", ["A", "B", "C"]), ("right", ["A", "D", "E"])):
+        source = tmp_path / f"{run}.npz"
+        np.savez(source, scores=np.array([[3.0, 2.0, 1.0]]),
+                 item_id=np.array([physical_items]), query_id=np.array(["shared-event"]))
+        before = source.read_bytes()
+        for mode in exported:
+            out = tmp_path / f"{run}-{mode}.csv"
+            metadata = exporter.export_npz(source, out, positive_index=0, identity=mode)
+            assert metadata["identity_mode"] == mode
+            exported[mode][run] = read_predictions(out)
+        assert source.read_bytes() == before
+    local_pair = compare_runs(exported["local"], Protocol(cutoffs=(1,)))["pairs"][0]
+    # Local pseudonyms only establish equality inside their own export namespace.
+    assert local_pair["matched_pool_comparison"]["query_count"] == 1
+    assert local_pair["candidate_sets"]["differing_queries"] == 0
+    source_pair = compare_runs(exported["source"], Protocol(cutoffs=(1,)))["pairs"][0]
+    assert source_pair["matched_pool_comparison"]["query_count"] == 0
+    assert source_pair["candidate_sets"]["differing_queries"] == 1
+    assert source_pair["status"] == "not_comparable"
+
+
+def test_stable_event_ids_align_reordered_context_rows(tmp_path):
+    runs = {}
+    for run, events, items in (
+        ("left", ["event-a", "event-b"], [["A", "B"], ["C", "D"]]),
+        ("right", ["event-b", "event-a"], [["C", "D"], ["A", "B"]]),
+    ):
+        source = tmp_path / f"{run}.npz"
+        np.savez(source, scores=np.array([[2.0, 1.0], [2.0, 1.0]]),
+                 item_id=np.array(items), query_id=np.array(events), user_id=np.array([7, 7]))
+        out = tmp_path / f"{run}.csv"
+        metadata = exporter.export_npz(source, out, positive_index=0, identity="source")
+        runs[run] = read_predictions(out)
+        assert [row.query_id for row in runs[run]][::2] == events
+        assert metadata["user_ids_exported"] is None
+        assert metadata["user_id_array_exported"] is False
+        assert metadata["retained_source_ids"] is True
+        assert metadata["qrels_complete"] is False
+    pair = compare_runs(runs, Protocol(cutoffs=(1,)))["pairs"][0]
+    assert pair["matched_pool_comparison"]["query_ids"] == ["event-a", "event-b"]
+    assert pair["matched_pool_comparison"]["query_count"] == 2
+    assert pair["status"] == "comparable"
+
+
+def test_source_utf8_tokens_preserve_exact_whitespace_and_canonically_distinct_text(tmp_path):
+    source = write_npz(
+        tmp_path, scores=np.array([[1.0000000000000002, -0.0, -2.0]]),
+        query_id=np.array([" 事件,甲\n ".encode()]),
+        item_id=np.array([[" é ".encode(), "e\u0301".encode(), "é".encode()]]),
+    )
+    out = tmp_path / "export.csv"
+    exporter.export_npz(source, out, positive_index=0, identity="source")
+    rows = read_predictions(out)
+    assert [row.item_id for row in rows] == [" é ", "e\u0301", "é"]
+    assert {row.query_id for row in rows} == {" 事件,甲\n "}
+    assert [row.score for row in rows] == [1.0000000000000002, -0.0, -2.0]
+    assert [row.relevance for row in rows] == [1.0, None, None]
+
+
+def test_large_integer_item_ids_are_never_converted_through_float(tmp_path):
+    values = [2**63 + 1, 2**63 + 2]
+    source = write_npz(
+        tmp_path, scores=np.array([[0.9, 0.2]]),
+        item_id=np.array([values], dtype=np.uint64), query_id=np.array(["event"]),
+    )
+    out = tmp_path / "export.csv"
+    exporter.export_npz(source, out, positive_index=0, identity="source")
+    assert [row.item_id for row in read_predictions(out)] == [str(value) for value in values]
+
+
+def test_duplicate_nonpositive_items_remain_visible_to_audit(tmp_path):
+    source = write_npz(
+        tmp_path, scores=np.array([[3.0, 2.0, 1.0]]),
+        item_id=np.array([["positive", "duplicate", "duplicate"]]), query_id=np.array(["event"]),
+    )
+    out = tmp_path / "export.csv"
+    exporter.export_npz(source, out, positive_index=0, identity="source")
+    rows = read_predictions(out)
+    assert [row.item_id for row in rows] == ["positive", "duplicate", "duplicate"]
+    assert [row.relevance for row in rows] == [1.0, None, None]
+    report = audit_run(rows, Protocol(cutoffs=(1,)))
+    assert "duplicate_candidates" in {finding["code"] for finding in report["findings"]}
+
+
+@pytest.mark.parametrize("query_ids", [
+    None, np.array(["same", "same"]), np.array(["event"]), np.array([["a", "b"]]),
+    np.array([1, 2]), np.array(["", "event"]), np.array([" \t", "event"]),
+    np.array([b"\xff", b"event"]), np.array(["\ud800", "event"]),
+    np.array(["x" * 4097, "event"]),
+])
+def test_invalid_source_event_ids_fail_before_output_even_with_limit(tmp_path, query_ids):
+    arrays = {"scores": np.array([[2.0, 1.0], [2.0, 1.0]]),
+              "item_id": np.array([["A", "B"], ["C", "D"]])}
+    if query_ids is not None:
+        arrays["query_id"] = query_ids
+    source = write_npz(tmp_path, **arrays)
+    before = source.read_bytes()
+    out = tmp_path / "export.csv"
+    with pytest.raises(ValueError, match="query_id"):
+        exporter.export_npz(source, out, positive_index=0, identity="source", limit_queries=1)
+    assert not out.exists()
+    assert not out.with_suffix(".csv.metadata.json").exists()
+    assert source.read_bytes() == before
+
+
+@pytest.mark.parametrize("items", [
+    np.array([["A", ""]]), np.array([["A", " \t"]]), np.array([[b"A", b"\xff"]]),
+    np.array([["A", "\ud800"]]), np.array([["A", "x" * 4097]]),
+    np.array([[1.0, 2.0]]), np.array([["same", "same"]]),
+])
+def test_invalid_source_item_ids_or_repeated_positive_fail_before_output(tmp_path, items):
+    source = write_npz(
+        tmp_path, scores=np.array([[2.0, 1.0]]), item_id=items, query_id=np.array(["event"]),
+    )
+    out = tmp_path / "export.csv"
+    with pytest.raises(ValueError):
+        exporter.export_npz(source, out, positive_index=0, identity="source")
+    assert not out.exists()
+
+
+def test_source_mode_keeps_explicit_negative_assertion_and_prefix_selection(tmp_path):
+    source = write_npz(
+        tmp_path, scores=np.array([[1.0, 2.0], [1.0, 2.0]]),
+        item_id=np.array([["A", "B"], ["C", "D"]]), query_id=np.array(["event-a", "event-b"]),
+    )
+    out = tmp_path / "export.csv"
+    metadata = exporter.export_npz(source, out, positive_index=1, identity="source",
+                                   other_candidates="nonrelevant", limit_queries=1)
+    rows = read_predictions(out)
+    assert [(row.query_id, row.item_id, row.relevance) for row in rows] == [
+        ("event-a", "A", 0.0), ("event-a", "B", 1.0),
+    ]
+    assert metadata["source_queries"] == 2 and metadata["exported_queries"] == 1
+    assert metadata["qrels_complete"] is False
+
+
+@pytest.mark.parametrize("target", ["csv", "metadata"])
+def test_hardlink_alias_cannot_overwrite_original_npz(tmp_path, target):
+    source = write_npz(tmp_path, scores=np.array([[2.0, 1.0]]),
+                       item_id=np.array([["A", "B"]]), query_id=np.array(["event"]))
+    before = source.read_bytes()
+    out = tmp_path / "export.csv"
+    metadata = out.with_suffix(".csv.metadata.json")
+    alias = out if target == "csv" else metadata
+    try:
+        os.link(source, alias)
+    except OSError as exc:
+        pytest.skip(f"hard links unavailable: {exc}")
+    with pytest.raises(ValueError, match="source NPZ"):
+        exporter.export_npz(source, out, positive_index=0, identity="source", overwrite=True)
+    assert source.read_bytes() == alias.read_bytes() == before
+    assert not (metadata if target == "csv" else out).exists()
+
+
+def test_csv_and_metadata_hardlink_alias_is_rejected_before_either_write(tmp_path):
+    source = write_npz(tmp_path, scores=np.array([[2.0, 1.0]]), item_id=np.array([["A", "B"]]))
+    before = source.read_bytes()
+    out = tmp_path / "export.csv"
+    out.write_bytes(b"keep prior output\n")
+    metadata = out.with_suffix(".csv.metadata.json")
+    try:
+        os.link(out, metadata)
+    except OSError as exc:
+        pytest.skip(f"hard links unavailable: {exc}")
+    with pytest.raises(ValueError, match="same file"):
+        exporter.export_npz(source, out, positive_index=0, overwrite=True)
+    assert out.read_bytes() == metadata.read_bytes() == b"keep prior output\n"
+    assert source.read_bytes() == before
+
+
+def test_csv_and_metadata_symlink_alias_is_rejected_before_either_write(tmp_path):
+    source = write_npz(tmp_path, scores=np.array([[2.0, 1.0]]), item_id=np.array([["A", "B"]]))
+    out = tmp_path / "export.csv"
+    metadata = out.with_suffix(".csv.metadata.json")
+    metadata.write_bytes(b"keep prior output\n")
+    try:
+        out.symlink_to(metadata)
+    except OSError as exc:
+        pytest.skip(f"symbolic links unavailable: {exc}")
+    with pytest.raises(ValueError, match="same file"):
+        exporter.export_npz(source, out, positive_index=0, overwrite=True)
+    assert out.read_bytes() == metadata.read_bytes() == b"keep prior output\n"
+
+
+def test_source_identity_cli_flag_emits_loadable_rows_and_explicit_privacy_metadata(tmp_path):
+    source = write_npz(tmp_path, scores=np.array([[2.0, 1.0]]),
+                       item_id=np.array([["A", "B"]]), query_id=np.array(["event"]))
+    out = tmp_path / "source.csv"
+    process = subprocess.run(
+        [sys.executable, str(SCRIPT), str(source), "--out", str(out),
+         "--positive-index", "0", "--identity", "source"],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    assert process.returncode == 0, process.stderr
+    metadata = json.loads(process.stdout)
+    assert metadata["identity_mode"] == "source"
+    assert metadata["retained_source_ids"] is True
+    assert metadata["user_ids_exported"] is None
+    assert "may identify people" in metadata["privacy_note"]
+    assert [(row.query_id, row.item_id) for row in read_predictions(out)] == [
+        ("event", "A"), ("event", "B"),
+    ]

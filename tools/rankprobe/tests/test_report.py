@@ -1,0 +1,327 @@
+import json
+from html.parser import HTMLParser
+import os
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+from rankprobe.audit import audit_run, compare_runs
+from rankprobe.model import Protocol, Row
+from rankprobe.report import render_html, write_report
+
+
+class ReportTables(HTMLParser):
+    """Read visible table cells without depending on the report's markup layout."""
+
+    def __init__(self, source):
+        super().__init__()
+        self.tables = []
+        self.ids = set()
+        self.links = []
+        self.rows = None
+        self.row = None
+        self.cell = None
+        self.feed(source)
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if "id" in attrs:
+            self.ids.add(attrs["id"])
+        if tag == "a":
+            self.links.append(attrs.get("href", ""))
+        if tag == "table":
+            self.rows = []
+        elif tag == "tr":
+            self.row = []
+        elif tag in {"th", "td"}:
+            self.cell = []
+
+    def handle_data(self, data):
+        if self.cell is not None:
+            self.cell.append(data)
+
+    def handle_endtag(self, tag):
+        if tag in {"th", "td"} and self.cell is not None:
+            self.row.append("".join(self.cell))
+            self.cell = None
+        elif tag == "tr" and self.row is not None:
+            self.rows.append(self.row)
+            self.row = None
+        elif tag == "table" and self.rows is not None:
+            self.tables.append(self.rows)
+            self.rows = None
+
+
+def sample_report():
+    return {
+        "schema_version": "0.1",
+        "report_type": "audit",
+        "run_name": '<img src="https://bad.test/x" onerror="alert(1)">',
+        "summary": {"queries": 2, "unknown_candidates": 1},
+        "protocol": {"tie_policy": "item_id", "qrels_complete": False},
+        "metrics": {
+            "ndcg@5": {
+                "value": 0.5,
+                "status": "partial",
+                "evaluated_queries": 1,
+                "total_queries": 2,
+                "excluded_queries": 1,
+                "reference": "candidate_pool",
+                "reason": "judgments are incomplete",
+            }
+        },
+        "findings": [
+            {
+                "code": "ties",
+                "severity": "warning",
+                "title": "Tied scores",
+                "message": '<script>alert("message")</script>',
+                "evidence": [{"query_id": '<svg onload="alert(1)">', "item_id": "x&y"}],
+            }
+        ],
+    }
+
+
+class ReportTests(unittest.TestCase):
+    def test_actual_comparison_exposes_positive_and_negative_matched_deltas(self):
+        runs = {
+            "baseline": [Row("q1", "b", 3, 0), Row("q1", "a", 2, 1), Row("q1", "c", 1, 0)],
+            "better": [Row("q1", "a", 3, 1), Row("q1", "b", 2, 0), Row("q1", "c", 1, 0)],
+            "worse": [Row("q1", "b", 3, 0), Row("q1", "c", 2, 0), Row("q1", "a", 1, 1)],
+        }
+        report = compare_runs(runs, Protocol(cutoffs=(2,)))
+        result = render_html(report)
+        tables = [table for table in ReportTables(result).tables if "Submitted left" in table[0]]
+        self.assertEqual(len(tables), 3)
+        rows = [{row[0]: row for row in table[1:]} for table in tables]
+        self.assertEqual(report["pairs"][0]["matched_pool_comparison"]["delta_right_minus_left"]["mrr@2"]["delta"], 0.5)
+        self.assertTrue(rows[0]["mrr@2"][-1].startswith("+0.5\n"))
+        self.assertTrue(rows[1]["mrr@2"][-1].startswith("-0.5\n"))
+        self.assertIn("status: partial", rows[0]["ndcg@2"][1])
+        self.assertIn("reference: candidate_pool", rows[0]["ndcg@2"][3])
+        self.assertIn("metric-eligible queries: 1 / 1", rows[0]["mrr@2"][3])
+        self.assertIn("not a full-run improvement", result)
+        self.assertIn('href="#pairs">Comparison results</a>', result)
+        self.assertLess(result.index('id="pairs"'), result.index('id="findings"'))
+
+    def test_comparison_separates_submitted_and_metric_eligible_populations(self):
+        rows = [
+            Row("q1", "a", 2, 0), Row("q1", "b", 1, 1),
+            Row("q2", "c", 2, 0), Row("q2", "d", 1, 0),
+            Row("q3", "e", 2), Row("q3", "f", 1, 1),
+        ]
+        report = compare_runs({"baseline": rows, "subset": rows[:2] + rows[4:]}, Protocol(cutoffs=(2,)))
+        result = render_html(report)
+        table = next(table for table in ReportTables(result).tables if "Submitted left" in table[0])
+        mrr = next(row for row in table[1:] if row[0] == "mrr@2")
+        self.assertTrue(mrr[1].startswith("0.25\n"))
+        self.assertTrue(mrr[2].startswith("0.5\n"))
+        self.assertTrue(mrr[3].startswith("0.5\n"))
+        self.assertTrue(mrr[4].startswith("0.5\n"))
+        self.assertTrue(mrr[5].startswith("+0\n"))
+        self.assertIn("Structurally matched queries: 2", result)
+        self.assertIn("metric-eligible queries: 1 / 2", mrr[3])
+        self.assertIn("Unknown top k judgment", result)
+        self.assertIn("Eligible query ids", result)
+        self.assertIn("pairs[0].matched_pool_comparison.left_metrics", result)
+        self.assertIn("Restore omitted predictions", result)
+        self.assertIn("JSON: findings[", result)
+
+    def test_actual_duplicate_diagnostic_retains_delta_column(self):
+        report = audit_run(
+            [Row("q1", "a", 3, 0), Row("q1", "a", 2, 0), Row("q1", "b", 1, 1)],
+            Protocol(cutoffs=(2,)),
+        )
+        self.assertEqual(report["duplicates"]["metric_sensitivity"]["delta_raw_minus_deduplicated"]["mrr@2"]["delta"], -0.5)
+        tables = ReportTables(render_html(report)).tables
+        visible_mrr_deltas = [
+            row[table[0].index("Delta")]
+            for table in tables if "Delta" in table[0]
+            for row in table[1:] if row[0] == "mrr@2"
+        ]
+        self.assertIn("-0.5", visible_mrr_deltas)
+
+    def test_coverage_details_are_bounded_and_run_names_escaped(self):
+        rows = [Row(f"coverage-id-{index:03d}", "a", 1, 1) for index in range(65)]
+        report = compare_runs({"<svg/onload=alert(1)>": rows, "other": rows}, Protocol(cutoffs=(1,)))
+        result = render_html(report)
+        self.assertNotIn("<svg", result)
+        self.assertIn("&lt;svg/onload=alert(1)&gt;", result)
+        self.assertIn("Showing 20 of 65 entries", result)
+        self.assertIn("coverage-id-019", result)
+        # Identifiers remain bounded even inside folded pair scope lists.
+        self.assertNotIn("coverage-id-064", result)
+        self.assertIn("overflow-wrap:anywhere", result)
+
+    def test_partial_reports_and_finding_links_keep_working_without_optional_sections(self):
+        reports = [
+            audit_run([Row("q1", "a", 1, 1), Row("q1", "b", 1, 0)], Protocol(cutoffs=(1,))),
+            {
+                "report_type": "compare",
+                "pairs": [{"left": "x", "right": "y", "custom_evidence": {"note": "retained detail"}}],
+                "findings": [{"code": "unknown_judgments", "severity": "warning"}],
+            },
+        ]
+        for report in reports:
+            with self.subTest(report_type=report["report_type"]):
+                result = render_html(report)
+                parsed = ReportTables(result)
+                for link in parsed.links:
+                    if link.startswith("#"):
+                        self.assertIn(link[1:], parsed.ids)
+                self.assertIn("Next step:", result)
+        self.assertIn("retained detail", render_html(reports[1]))
+
+    def test_escapes_untrusted_identifiers_and_messages(self):
+        result = render_html(sample_report())
+        self.assertNotIn("<script>", result)
+        self.assertNotIn("<svg ", result)
+        self.assertNotIn("<img ", result)
+        self.assertIn("&lt;script&gt;", result)
+        self.assertIn("x&amp;y", result)
+        self.assertIn("default-src 'none'", result)
+        self.assertNotIn("<script src=", result)
+
+    def test_unknown_and_metric_reference_remain_visible(self):
+        result = render_html(sample_report())
+        self.assertIn("Relevance coverage is incomplete", result)
+        self.assertIn("candidate_pool", result)
+        self.assertIn("partial", result)
+        self.assertIn("A missing value is not zero", result)
+
+    def test_perfect_partial_metric_context_is_visible_only_in_main_metrics(self):
+        rows = [
+            Row("positive_first", "positive", 0.9, 1),
+            Row("positive_first", "unjudged", 0.2),
+            Row("unknown_first", "unjudged", 0.9),
+            Row("unknown_first", "positive", 0.2, 1),
+        ]
+        report = audit_run(rows, Protocol(cutoffs=(1,)))
+        before = json.dumps(report, sort_keys=True)
+        result = render_html(report)
+        context = "mrr@1 = 1 is the average over 1 eligible query out of 2 submitted queries."
+        self.assertEqual(result.count(context), 1)
+        self.assertIn("perfect results across all submitted queries", result)
+        self.assertIn("See coverage details for exclusion reasons", result)
+        self.assertLess(result.index('id="metrics"'), result.index(context))
+        self.assertLess(result.index(context), result.index('id="tie_analysis"'))
+        self.assertEqual(json.dumps(report, sort_keys=True), before)
+        metrics = report["metrics"]
+        self.assertEqual(metrics["mrr@1"]["excluded_query_ids"], ["unknown_first"])
+        self.assertIsNone(metrics["ndcg@1"]["value"])
+        self.assertIsNone(metrics["recall@1"]["value"])
+
+    def test_partial_perfect_context_requires_partial_query_coverage_and_exact_one(self):
+        full_coverage = audit_run(
+            [Row("q", "positive", 2, 1), Row("q", "negative", 1, 0)],
+            Protocol(cutoffs=(1,)),
+        )
+        self.assertEqual(full_coverage["metrics"]["ndcg@1"]["value"], 1)
+        self.assertEqual(full_coverage["metrics"]["ndcg@1"]["status"], "partial")
+        self.assertEqual(full_coverage["metrics"]["ndcg@1"]["reference"], "candidate_pool")
+        nonperfect = audit_run(
+            [Row("known", "negative", 2, 0), Row("known", "positive", 1, 1),
+             Row("unknown", "unjudged", 1)],
+            Protocol(cutoffs=(2,)),
+        )
+        self.assertEqual(nonperfect["metrics"]["mrr@2"]["value"], 0.5)
+        self.assertEqual(nonperfect["metrics"]["mrr@2"]["status"], "partial")
+        unavailable = audit_run([Row("q", "unjudged", 1)], Protocol(cutoffs=(1,)))
+        self.assertIsNone(unavailable["metrics"]["mrr@1"]["value"])
+        near_one = {
+            "metrics": {
+                "mrr@1": {
+                    **nonperfect["metrics"]["mrr@2"],
+                    "value": 0.9999999,
+                }
+            }
+        }
+        rendered_near_one = ReportTables(render_html(near_one)).tables[0]
+        self.assertEqual(rendered_near_one[1][rendered_near_one[0].index("Value")], "1")
+        for name, report in (
+            ("full coverage with candidate-pool partial", full_coverage),
+            ("nonperfect", nonperfect),
+            ("unavailable", unavailable),
+            ("rounded to one", near_one),
+        ):
+            with self.subTest(case=name):
+                self.assertNotIn("perfect results across all submitted queries", render_html(report))
+
+    def test_bounded_evidence_and_native_keyboard_controls(self):
+        report = sample_report()
+        report["findings"][0]["evidence"] = [{"query_id": f"unique-query-{i}"} for i in range(40)]
+        result = render_html(report)
+        self.assertIn("unique-query-19", result)
+        self.assertNotIn("unique-query-20", result)
+        self.assertIn("Showing 20 of 40 rows", result)
+        self.assertIn("<details>", result)
+        self.assertIn("<summary>", result)
+        self.assertIn('href="#main"', result)
+
+    def test_empty_audit_does_not_claim_correctness(self):
+        result = render_html({"findings": []})
+        self.assertIn("No findings were reported", result)
+        self.assertIn("does not establish data provenance", result)
+
+    def test_writes_both_and_preserves_unrelated_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            (folder / "notes.txt").write_text("keep me", encoding="utf-8")
+            json_file, html_file = write_report(sample_report(), folder)
+            self.assertEqual(json.loads(json_file.read_text(encoding="utf-8")), sample_report())
+            self.assertTrue(html_file.read_text(encoding="utf-8").startswith("<!doctype html>"))
+            self.assertEqual((folder / "notes.txt").read_text(encoding="utf-8"), "keep me")
+            original = json_file.read_bytes()
+            with self.assertRaises(FileExistsError):
+                write_report({"findings": []}, folder)
+            self.assertEqual(json_file.read_bytes(), original)
+
+    def test_overwrite_replaces_only_named_outputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            write_report(sample_report(), folder)
+            (folder / "source.csv").write_text("keep", encoding="utf-8")
+            write_report({"findings": []}, folder, overwrite=True)
+            self.assertEqual(
+                json.loads((folder / "report.json").read_text(encoding="utf-8")), {"findings": []}
+            )
+            self.assertEqual((folder / "source.csv").read_text(encoding="utf-8"), "keep")
+
+    def test_nonfinite_json_is_rejected_before_touching_outputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            write_report(sample_report(), folder)
+            original = (folder / "report.json").read_bytes()
+            with self.assertRaises(ValueError):
+                write_report({"value": float("nan")}, folder, overwrite=True)
+            self.assertEqual((folder / "report.json").read_bytes(), original)
+
+    def test_replacement_failure_rolls_back_existing_pair(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            write_report(sample_report(), folder)
+            before = {name: (folder / name).read_bytes() for name in ("report.json", "report.html")}
+            actual_replace = os.replace
+            failed = False
+
+            def fail_html_install(source, target):
+                nonlocal failed
+                if (
+                    not failed
+                    and Path(source).name == "report.html"
+                    and Path(target).parent == folder
+                ):
+                    failed = True
+                    raise OSError("simulated disk error")
+                return actual_replace(source, target)
+
+            with patch("rankprobe.report.os.replace", side_effect=fail_html_install):
+                with self.assertRaises(OSError):
+                    write_report({"findings": []}, folder, overwrite=True)
+            for name, content in before.items():
+                self.assertEqual((folder / name).read_bytes(), content)
+
+
+if __name__ == "__main__":
+    unittest.main()
