@@ -113,12 +113,17 @@ jobs:
       - name: Check shared metrics and protocol boundaries
         working-directory: ${{ steps.package.outputs.root }}
         run: python scripts/check_trec_eval.py --trec-eval "${{ steps.reference.outputs.source }}/trec_eval" --summary "$RUNNER_TEMP/rankprobe-reference-result.json"
+      - name: Check real TREC-COVID protocol against pinned reference
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python scripts/check_trec_covid.py --trec-eval "${{ steps.reference.outputs.source }}/trec_eval" --inputs-dir "$RUNNER_TEMP/rankprobe-trec-covid-inputs" --fetch --summary "$RUNNER_TEMP/rankprobe-trec-covid-result.json"
       - name: Save reference check summary
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: trec-eval-reference
-          path: ${{ runner.temp }}/rankprobe-reference-result.json
+          path: |
+            ${{ runner.temp }}/rankprobe-reference-result.json
+            ${{ runner.temp }}/rankprobe-trec-covid-result.json
           if-no-files-found: ignore
           retention-days: 14
 

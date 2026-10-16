@@ -2,6 +2,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Added an opt-in real-input reference checker for the checksummed TREC-COVID Round 1 pair. It compares an explicitly declared nonrelevant assumption and aligned tie order with the current pinned NIST implementation, preserving sparse source judgments, the default unknown audit and incomplete-qrels status. Historical score agreement does not authenticate the original evaluator.
 - Added a checksummed, file-only TREC-COVID Round 1 walkthrough using actual archived predictions and matching judgments. It documents explicit format selection, sparse judgment coverage and tied scores without bundling upstream files or claiming benchmark parity, adoption or time saved.
 - Restricted branch-push CI to `main` while retaining PR, tag and declared manual triggers, avoiding duplicate ten-job suites for feature PR updates. The validation matrix and job contents are unchanged; feature branches without PRs no longer start checks automatically.
 - Clarified how to retain sampled-negative assumptions in audit reports: keep unknown labels in the exported CSV, then explicitly declare the audit policy when the source protocol supports it. Materialized zero labels and the exporter's separate metadata are distinguished from report-recorded assumptions.

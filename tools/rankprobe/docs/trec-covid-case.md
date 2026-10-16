@@ -98,6 +98,48 @@ MRR@10 excludes a query when any of its top-ten candidates is unjudged, even whe
 
 NDCG requires known labels for every submitted candidate under this policy, so an unknown candidate below the cutoff can still exclude its query. All 30 queries have an unknown submitted candidate here. Recall additionally needs a justified completeness declaration; a pooled set of judgments does not supply that declaration automatically. Exact tie bounds are also unavailable because their scope requires every candidate judgment in a query to be known. Tie counts identify equal scores to inspect, not a defect or evidence that a metric changed.
 
-The historical NIST report lists NDCG@10 = 0.2286. This guide does not treat that score as a parity target for the default audit: unknown-label treatment, tie ordering and eligible query sets must match before comparing numbers. No native trec_eval comparison was performed for this case. The separate [pinned-reference checks](trec-reference.md) have their own stated synthetic protocols.
+The historical NIST report lists NDCG@10 = 0.2286. This guide does not treat that score as a parity target for the default audit: unknown-label treatment, tie ordering and eligible query sets must match before comparing numbers. The observations above were recorded without a native trec_eval comparison. The separate [pinned-reference checks](trec-reference.md) have their own stated synthetic protocols.
 
 For a follow-up investigation, first verify the Round 1 input fingerprints and inspect the locally reported unknown candidates and tie groups. Check judgment version, gain, relevance threshold, tie policy and query coverage against the intended evaluation. A separate audit with `--unjudged nonrelevant` needs an explicit justification for that assumption and must retain its reported assumption counts; it does not establish complete qrels. Keep any such result separately named and preserve the original files.
+
+## Separate native-reference check
+
+`scripts/check_trec_covid.py` compares this fixed public input with an explicitly supplied native `trec_eval`. The [NIST data page](https://ir.nist.gov/trec-covid/data.html) states that most measures assume documents absent from qrels are not relevant. That supports a separately declared missing-as-nonrelevant experiment for MRR and linear NDCG; it does not turn absent judgments into supplied labels or establish complete qrels. This checker always keeps `qrels_complete=False`, leaves Recall unavailable, and preserves the default unknown-policy controls above.
+
+With an installed RankProbe and the source checkout, use the already fetched files:
+
+```sh
+python scripts/check_trec_covid.py --trec-eval /path/to/trec_eval --inputs-dir artifacts/trec-covid-round1-local --summary artifacts/trec-covid-reference-result.json
+```
+
+Both `--trec-eval` and `--inputs-dir` are required. The input directory must contain the exact `ir_covid19_cle_lmd` and `qrels-rnd1.txt` files with the lengths and SHA256 values recorded above. Alternatively, add `--fetch` with a fresh input directory to download only those two bounded files:
+
+```sh
+python scripts/check_trec_covid.py --trec-eval /path/to/trec_eval --inputs-dir artifacts/trec-covid-round1-reference --fetch --summary artifacts/trec-covid-reference-result.json
+```
+
+These are alternative recipes. `--fetch` refuses an existing input directory; it verifies the fixed fingerprints and creates files exclusively. `--summary` is optional and refuses an existing output file. Choose a fresh summary path for another attempt. The summary contains aggregate results and provenance, without local paths, participant records or per-query native output. The checker does not rewrite the original run, qrels or default report. It checks input hashes before and after native execution and verifies that the original in-memory rows and qrels remain unchanged.
+
+The comparison uses linear gain, relevance greater than zero, cutoffs 1, 5 and 10, and the same 30 queries. Its explicit nonrelevant view retains 781 supplied candidate labels and records 1,820 assumed nonrelevant candidates. MRR and NDCG remain `partial`; NDCG uses the known qrels pool as its ideal-ranking reference. Added zero gains do not require a completeness declaration, while Recall still does.
+
+Exact score ties need a separate adapter. RankProbe's ordinary `item_id` policy orders tied IDs ascending; the pinned native source orders them descending. The checker creates only an in-memory copy ordered by descending ASCII document ID, then selects `tie_policy="input"`, whose stable descending-score sort retains that order for ties. Original document IDs, scores, run bytes and qrels stay unchanged. This adapter is explicit reference ordering, not a change to the default tie policy.
+
+The following values are recorded RankProbe API observations, **not evidence of a passed native check**:
+
+| Explicit nonrelevant view, all 30 queries | Ascending document-ID ties | Native-aligned descending document-ID ties |
+| --- | ---: | ---: |
+| MRR@10 | 0.3942989417989418 | 0.3942989417989418 |
+| NDCG@10 | 0.22869399948832908 | 0.2286144995215745 |
+| Recall@1, @5 and @10 | Unavailable | Unavailable |
+
+Only one query's NDCG@10 changes with this tie ordering. The two macro values round to 0.2287 and 0.2286, respectively. The latter matches the historical report's displayed precision; that is a rounding observation, not identification or reproduction of the 2020 executable or scoring command.
+
+The checker invokes NDCG on the original paths once, without truncating the run:
+
+```sh
+trec_eval -q -l 1 -m ndcg_cut.1,5,10 ORIGINAL_QRELS ORIGINAL_RUN
+```
+
+It invokes `recip_rank` separately with `-M 1`, `-M 5` and `-M 10`, because that measure has no cutoff parameter. It does not use `-J`, which would remove unjudged candidates and change their positions. The expected result is exactly 186 comparisons: 30 per-query values plus one macro value, for each of three cutoffs and two metrics. Each comparison uses absolute tolerance `0.00005000001` and relative tolerance zero, reflecting native four-decimal output. A pass establishes numerical agreement only under this declared protocol and output precision. The checker also requires the unchanged default controls: no assumed nonrelevant candidates, six eligible MRR@10 queries, and unavailable NDCG and Recall.
+
+CI uses the modern NIST source pin [`ba38899cbd4de0fb699b47f39b64ef1c107e4a5c`](https://github.com/usnistgov/trec_eval/tree/ba38899cbd4de0fb699b47f39b64ef1c107e4a5c), whose version is `10.0-rc3`. The verified source archive SHA256 is `d603cd657950aebea3a5ed08cee5ea0e5e836012ed5eb63303d3a7d66e49ba6a`; the reference job builds the unmodified source and runs its upstream `quicktest` before the checker. Check the CI run for the exact RankProbe commit before claiming this gate passed. The summary records the supplied executable's hash and version, but a version string alone does not prove build provenance. This modern reference cannot be described as the original 2020 binary, whose build and complete command remain unverified.
