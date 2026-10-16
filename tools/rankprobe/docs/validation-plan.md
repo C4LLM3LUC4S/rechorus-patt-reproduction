@@ -36,16 +36,45 @@ Possible research questions include how evaluation choices change model ordering
 
 ## Feedback form
 
-Use these fields in a local note or a repository issue after removing sensitive information:
+Copy this record into a local note for each trial. Write the question and existing judgment before opening the report. Record failures, no useful information and incorrect findings as well as useful results. Share only a reviewed, de-identified copy with the participant's consent; private inputs and full reports are unnecessary.
+
+Use `not measured` for unrecorded times, rather than zero. Keep participant active time, unattended waiting and author assistance distinct. A measured zero is valid; missing measurements are not zeros.
+
+For report understanding, choose one metric or finding and explain its value and coverage in your own words, using the [metric semantics](metrics.md) when needed. No screenshot or private query IDs are required.
 
 ```text
-RankProbe version / commit:
+Anonymous trial ID / date:
+Did the participant help implement RankProbe? yes / no:
+RankProbe version / source commit (if available):
 Python and operating system:
-Input source and format (no private identifiers):
-Time spent exporting / installing / interpreting:
-Expected behavior:
-Observed behavior:
-New information or decision changed:
-Would use again? Why?
-Minimal synthetic reproduction:
+Existing framework / task / input format (no private identifiers):
+Input category: synthetic example / public real export / participant's own real export:
+Is the participant permitted to inspect these inputs locally? yes / no / uncertain:
+Specific question and what would count as answering it:
+Before the report: existing judgment and supporting evidence:
+
+Installation: participant active minutes / unattended waiting minutes:
+Export preparation: participant active minutes / unattended waiting minutes:
+Report interpretation: participant active minutes / unattended waiting minutes:
+Author help: participant assisted active minutes / participant waiting minutes (both already included above) / author active minutes:
+Machine audit runtime in seconds (only if recorded):
+Could the participant finish without help? Blocker / error / help provided:
+
+New information / already known / not useful / incorrect finding:
+Selected metric or finding, explained in your own words; eligible / submitted query coverage when applicable:
+Finding code and minimal synthetic reproduction, if needed:
+Actual action taken and whether the original judgment changed; why:
+Actual second use: not yet / no / yes; date and task if yes:
+Intention to use again and reason (separate from actual use):
+Consent to retain this de-identified feedback: yes / no:
 ```
+
+Synthetic-example feedback checks onboarding; it does not establish adoption on real exports. An implementation author's use is developer validation. An intention to return is not a second use. These records remain blank until an actual participant completes a trial.
+
+## Interpreting human time
+
+Without a human comparison, report only the time spent completing this task. Machine runtime alone does not measure human time saved. Do not add assisted participant minutes to the participant stage totals again; report author effort separately.
+
+For a comparison, first fix the question, completion criteria and which time components count. Use two permitted cases of similar difficulty, one with the participant's existing tools and one with RankProbe; vary the order across participants. Record whether the question was fully answered, help was needed, or the answer was already known. Repeating the same problem can benefit from familiarity with its answer, which must not be credited to the tool.
+
+With few participants or cases of uncertain equivalence, show individual recorded times and limitations, not a general percentage saving. Keep timing on synthetic tasks separate from adoption on real inputs. This is a practical trial record, not evidence already collected or a formal research study.

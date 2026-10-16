@@ -2,6 +2,8 @@
 
 RankProbe is an early offline checker for recommendation, retrieval, and reranking exports. It helps you inspect ties, repeated candidates, missing queries, inconsistent candidate pools, and uncertain judgments. It does not train a model or certify an experiment.
 
+If you are trying it to give feedback, open the [trial record](validation-plan.md#feedback-form) before installing or reading a report. Write down your question and existing judgment first. If you have already completed a step without timing it, mark its time `not measured` rather than guessing.
+
 ## 1. Install locally
 
 Use Python 3.10 or newer. No Git is required: [download the source ZIP](https://codeload.github.com/C4LLM3LUC4S/rechorus-patt-reproduction/zip/refs/heads/feature/rankprobe-alpha), extract it, and open a terminal in the extracted repository folder. Run `cd tools/rankprobe` to reach this package's root. The ZIP contains the examples and source helpers; a wheel installation alone does not supply their checkout paths. The [main README](../README.md) also gives the optional Git route. This alpha has not been published to PyPI.
@@ -91,6 +93,8 @@ This file boundary avoids moving a trained model into the core environment. Leav
 Share the repository / branch link from the main README together with this page. This invitation has not been sent by the project, and it is not evidence of external adoption.
 
 ## Six feedback questions
+
+Use the [copyable trial record](validation-plan.md#feedback-form) to record the task and your existing judgment before opening your report. It separates real exports from synthetic examples, active human time from waiting, assistance and actual repeat use. Unmeasured time stays `not measured`; a machine runtime is not human time saved.
 
 1. What did you try: recommendation, retrieval, reranking, or another ranking task? What file format and evaluator did you use?
 2. Could you install the tool and create the first report without help? Where did you stop or get confused?
