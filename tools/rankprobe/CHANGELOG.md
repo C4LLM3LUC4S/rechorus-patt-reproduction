@@ -2,6 +2,7 @@
 
 ## 0.1.0a4 — MRR eligibility from known prefixes
 
+- Added a bounded fractional-label linear NDCG reference case. The original binary-exact fractional grades stay unchanged; only an oracle copy is scaled to integer gains, with explicit mapping and input-integrity controls. Fractional exponential gain and extreme-value parity remain outside this check.
 - Unsupported-extension errors identify the appropriate `--input-format` or `--qrels-format` CLI flag alongside the Python argument. Input parsing and format selection remain explicit.
 - MRR can include a query when the first relevant rank is already determined by known labels, even if later candidates remain unknown. An unknown before that first relevant item still excludes the query; fully known top-k lists with no relevant item contribute zero.
 - Missing labels, assumption counts, NDCG, Recall and exact tie-bound rules are unchanged. Broader MRR coverage changes the eligible subset and can change its average; it is not evidence of improved ranking scores.

@@ -49,6 +49,27 @@ At cutoff 1, the analytic NDCG values are `q1=1/7`, `q2=3/7`, and macro `2/7`. T
 
 This case supports only exponential-gain NDCG on these small integer grades. It does not cover fractional or extreme grades, score ties, other judgment policies, or general agreement between evaluators. Restricting the transformed gains to a maximum of 7 also keeps the pinned source's [relevance-level allocation](https://github.com/usnistgov/trec_eval/blob/ba38899cbd4de0fb699b47f39b64ef1c107e4a5c/form_res_rels.c#L153-L157) bounded.
 
+## Bounded fractional linear-gain NDCG check
+
+A separate `fractional_linear_ndcg` summary records 12 comparisons for one original two-query case: per-query and macro NDCG at cutoffs 1, 2, 5 and 10. RankProbe receives the original fractional grades with linear gain and `qrels_complete=True`. Every candidate has an explicit judgment; scores are finite and distinct, candidate IDs are unique within each query, and both evaluators use exactly the same two queries. The complete qrels manually enumerate each small synthetic universe, including unretrieved items. This construction justifies completeness for this case only; it does not establish completeness for user data.
+
+| Query | Retrieved items in score order | Complete original judgments |
+| --- | --- | --- |
+| `q1` | `low` (4), `high` (2) | `low=0.125`, `high=1.75`, `unretrieved_medium=0.5`, `zero=0` |
+| `q2` | `medium` (9), `zero` (5) | `medium=0.5`, `zero=0`, `unretrieved_high=1.75`, `low=0.125` |
+
+Only a new oracle-qrels copy multiplies every original grade by 8, mapping `0, 0.125, 0.5, 1.75` exactly to the integers `0, 1, 4, 14`. The checker independently asserts this exact mapping for every qrels entry, including unretrieved and zero-grade entries. For linear gain, a common positive scaling multiplies both DCG and IDCG by the same factor, so their ratio is unchanged. Different common scales that yield integer oracle grades, such as 8 and 64 (scaling by 8 twice), would produce the same NDCG. Metric agreement therefore cannot verify the required single factor of 8; the per-entry mapping assertions are required separately.
+
+The original RankProbe rows and qrels stay unchanged in memory. The checker writes the original fractional qrels, the original prediction run and the integer oracle qrels, then records and compares pre/post SHA256 hashes for all three files in `input_file_integrity`, separately from `original_in_memory_inputs_unchanged`. Only the integer oracle qrels are supplied to the native reference, in one invocation:
+
+```sh
+trec_eval -q -m ndcg_cut.1,2,5,10 gain-transformed.qrels predictions.run
+```
+
+This invocation requests only cutoff NDCG and needs no `-M`. At cutoff 1, the analytic NDCG values are `q1=1/14`, `q2=2/7`, and macro `5/28`. RankProbe's internal analytic controls use absolute tolerance `1e-14`. The checker requires exactly the 12 expected metric/query keys and RankProbe status `ok`; every comparison involving the reference's four-decimal output uses absolute tolerance `0.00005000001`. Both tolerances use relative tolerance zero.
+
+This case checks only these bounded fractional grades with linear gain through an integer-scaled oracle. It does not show that native `trec_eval` accepts fractional qrels, and it does not cover fractional exponential gain, extreme grades, score ties, arbitrary decimal labels, or new file-import validation. The original 960 linear comparisons, four boundary probes and 12 integer exponential-gain comparisons retain their separate scopes and summaries. The same modern source pin and executable-provenance limits above apply; actual executable agreement must be confirmed by the pinned-reference CI job for the checked commit.
+
 ## Differences to check before changing code
 
 | Situation | RankProbe | Pinned reference behavior |
@@ -58,7 +79,7 @@ This case supports only exponential-gain NDCG on these small integer grades. It 
 | Query with no relevant judgments | Recall excludes it and reports why | Recall contributes zero to the macro average |
 | Qrels query without submitted predictions | Reports missing query and averages submitted, eligible queries | This pinned source exits with code 4 by default; `-c` includes the missing query as zero |
 | Exponential gain on small integer grades | Explicitly supported by RankProbe | Covered only by the separate bounded case above using transformed reference qrels |
-| Fractional or extreme relevance grades | Explicitly supported by RankProbe | Outside these reference comparisons |
+| Fractional or extreme relevance grades | Explicitly supported by RankProbe | Only the bounded fractional linear case above is covered, using an integer-scaled oracle; fractional exponential gain, extreme grades and arbitrary decimal labels remain outside these reference comparisons |
 | Duplicate retrieved document | Highest-score deduplication plus a finding | Outside this parity suite; reference can reject it |
 
 These are protocol differences, not proof that either model improved. The boundary probes deliberately assert different outputs where appropriate. They also check that RankProbe keeps unknown labels unknown. The pinned source's [actual missing-query control flow](https://github.com/usnistgov/trec_eval/blob/ba38899cbd4de0fb699b47f39b64ef1c107e4a5c/trec_eval.c#L349-L375) takes precedence over its older intersection wording in help text; results must be confirmed by execution.
