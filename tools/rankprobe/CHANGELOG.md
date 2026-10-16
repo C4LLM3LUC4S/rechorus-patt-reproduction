@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Kept the real TREC-COVID walkthrough on the first-report virtual-environment interpreter, with explicit Windows and macOS/Linux commands. Copying the audit command no longer relies on shell activation or the system Python having RankProbe installed.
 - Added a complete, isolated installation recipe for the optional MTEB check. It shares 19 dependency requests with CI, which records installed package names/versions and exercises the documented CLI. The source distribution includes the dependency file; the requests and snapshot are not a full dependency lock.
 - Added an optional, isolated MTEB native workflow check on original in-memory inputs. It exercises real prediction saving, the copied guide conversion and RankProbe reports, with offline runtime, separate caches and sparse-label controls; the core dependencies and metric contracts are unchanged.
 - Added a source-grounded MTEB retrieval prediction recipe using the existing CSV interface. It makes model-output directories, metric-cache bypass, subset/split selection, independent judgments and pre-scoring candidate scope explicit; no framework dependency, core loader or native-parity claim was added.

@@ -17,7 +17,9 @@ The local check on 2026-10-16 recorded these exact bytes:
 
 ## Fetch the two bounded files
 
-Use an interpreter with RankProbe installed. From the source checkout, save the following original code as a separate `fetch_trec_covid.py`, then run `python fetch_trec_covid.py`. It uses only Python's standard library and works without shell-specific activation or heredoc syntax. The destination must be fresh; choose a new directory name for another attempt and use that name in the audit command too.
+Start in this checkout's package folder with the core `.venv` from the [first-report installation](try-it.md#1-install-locally). Keep using its explicit interpreter path; activating the environment is unnecessary. A bare `python` may select a different environment where RankProbe is not installed.
+
+Save the following original code as a separate `fetch_trec_covid.py`. It uses only Python's standard library and works without shell-specific activation or heredoc syntax. The destination must be fresh; choose a new directory name for another attempt and use that name in the audit command too.
 
 The initial default `urllib` GET for the run returned HTTP 403 before saving bytes. Explicit `Request` objects with `User-Agent: RankProbe-local-validation/0.1` and `Accept: text/plain` returned HTTP 200 for both files. The recipe uses those headers, a 2 MiB limit per response, exact length and SHA256 checks, and exclusive `xb` file creation after verification. A changed file is rejected rather than accepted under the recorded fingerprint.
 
@@ -65,14 +67,36 @@ for name, url, expected_bytes, expected_hash in FILES:
 print(json.dumps(manifest, indent=2))
 ```
 
+Run it with the same interpreter you will use for the audit.
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe fetch_trec_covid.py
+```
+
+macOS / Linux:
+
+```sh
+.venv/bin/python fetch_trec_covid.py
+```
+
 If fetching fails or a fingerprint changes, inspect the source response and retain the failed attempt's context. Use a fresh destination for a retry. Do not update the expected fingerprint merely to make an unexplained response pass.
 
 ## Audit with explicit input formats
 
 The prediction filename has no extension and the judgment file ends in `.txt`. Neither identifies its TREC format automatically. The observed automatic-format attempt exited with code 2 at the qrels file and produced no report. The error names `--qrels-format trec`; after declaring that format, the extensionless prediction needs `--input-format trec` too. Both format declarations are needed:
 
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m rankprobe audit artifacts/trec-covid-round1-local/ir_covid19_cle_lmd --input-format trec --qrels artifacts/trec-covid-round1-local/qrels-rnd1.txt --qrels-format trec --gain linear --tie-policy item_id --cutoffs 1,5,10 --unjudged unknown --out artifacts/trec-covid-round1-local/report
+```
+
+macOS / Linux:
+
 ```sh
-python -m rankprobe audit artifacts/trec-covid-round1-local/ir_covid19_cle_lmd --input-format trec --qrels artifacts/trec-covid-round1-local/qrels-rnd1.txt --qrels-format trec --gain linear --tie-policy item_id --cutoffs 1,5,10 --unjudged unknown --out artifacts/trec-covid-round1-local/report
+.venv/bin/python -m rankprobe audit artifacts/trec-covid-round1-local/ir_covid19_cle_lmd --input-format trec --qrels artifacts/trec-covid-round1-local/qrels-rnd1.txt --qrels-format trec --gain linear --tie-policy item_id --cutoffs 1,5,10 --unjudged unknown --out artifacts/trec-covid-round1-local/report
 ```
 
 This retains the default unknown-label policy and leaves qrels completeness undeclared. It uses descending scores and ascending item IDs for ties; submitted rank fields do not determine ordering. The run has six fields per record, while qrels has four. Fractional iteration values such as `0.5` in qrels are bookkeeping and are ignored, not interpreted as relevance grades. The report destination is new and no overwrite flag is used.
@@ -109,16 +133,16 @@ For a follow-up investigation, first verify the Round 1 input fingerprints and i
 
 `scripts/check_trec_covid.py` compares this fixed public input with an explicitly supplied native `trec_eval`. The [NIST data page](https://ir.nist.gov/trec-covid/data.html) states that most measures assume documents absent from qrels are not relevant. That supports a separately declared missing-as-nonrelevant experiment for MRR and linear NDCG; it does not turn absent judgments into supplied labels or establish complete qrels. This checker always keeps `qrels_complete=False`, leaves Recall unavailable, and preserves the default unknown-policy controls above.
 
-With an installed RankProbe and the source checkout, use the already fetched files:
+These optional reference commands use the macOS / Linux core interpreter path and require a native executable you supply; `/path/to/trec_eval` is a placeholder. They do not build or install that executable. With the source checkout, use the already fetched files:
 
 ```sh
-python scripts/check_trec_covid.py --trec-eval /path/to/trec_eval --inputs-dir artifacts/trec-covid-round1-local --summary artifacts/trec-covid-reference-result.json
+.venv/bin/python scripts/check_trec_covid.py --trec-eval /path/to/trec_eval --inputs-dir artifacts/trec-covid-round1-local --summary artifacts/trec-covid-reference-result.json
 ```
 
 Both `--trec-eval` and `--inputs-dir` are required. The input directory must contain the exact `ir_covid19_cle_lmd` and `qrels-rnd1.txt` files with the lengths and SHA256 values recorded above. Alternatively, add `--fetch` with a fresh input directory to download only those two bounded files:
 
 ```sh
-python scripts/check_trec_covid.py --trec-eval /path/to/trec_eval --inputs-dir artifacts/trec-covid-round1-reference --fetch --summary artifacts/trec-covid-reference-result.json
+.venv/bin/python scripts/check_trec_covid.py --trec-eval /path/to/trec_eval --inputs-dir artifacts/trec-covid-round1-reference --fetch --summary artifacts/trec-covid-reference-result.json
 ```
 
 These are alternative recipes. `--fetch` refuses an existing input directory; it verifies the fixed fingerprints and creates files exclusively. `--summary` is optional and refuses an existing output file. Choose a fresh summary path for another attempt. The summary contains aggregate results and provenance, without local paths, participant records or per-query native output. The checker does not rewrite the original run, qrels or default report. It checks input hashes before and after native execution and verifies that the original in-memory rows and qrels remain unchanged.
