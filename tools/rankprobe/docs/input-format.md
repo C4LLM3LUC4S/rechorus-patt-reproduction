@@ -96,3 +96,9 @@ python -m rankprobe compare --run model_a=a.csv --run model_b=b.jsonl --out repo
 Use a descriptive name before `=`. Do not compare remapped IDs from independently generated mappings without verifying alignment. Matching IDs, candidate sets, and labels establish only file-level agreement; they do not prove identical train/test splits, model selection, preprocessing, or tokenization.
 
 Save the report alongside experiment configuration, data version, framework version, and the process that exported predictions. These records provide context the score file cannot contain.
+
+## Python numeric values
+
+Use finite Python `int` or `float` values for `Row` scores and known relevance, qrels grades, and `Protocol.relevance_threshold`. Booleans are rejected. Other numeric objects, such as `Fraction` and NumPy scalar types that are not Python `int`/`float` instances, are rejected before evaluation rather than failing when the report is serialized. NumPy is not a core dependency.
+
+Convert array-library scalars explicitly at your API boundary: use `int(integer_scalar)` for an integer value, or `float(floating_scalar)` for a floating value. Do not convert integer scores or grades indiscriminately to float: large integers can lose precision. Converting an already rounded floating value cannot recover the original precision. See [numeric precision and metric semantics](metrics.md#ordering-relevance-and-duplicate-rows).

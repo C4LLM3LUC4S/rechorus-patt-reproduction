@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Reject unsupported numeric objects in `Row` and `Protocol` with a field-specific error. Previously some `numbers.Real` thresholds, including `Fraction` and NumPy scalars, could complete an audit and then fail JSON report serialization. Supported integer values are retained without float conversion; the core gains no dependency.
 - Clarified BEIR's empty-query run-file boundary: preserve intended evaluation IDs separately and check them against predictions and qrels. Broader judgment scope cannot justify automatic zero filling, and queries absent from both files cannot be recovered by an audit.
 - Preserved accepted integer scores, grades and relevance thresholds instead of rounding them through float. Adjacent large integers now retain ordering, label conflicts and threshold decisions; NDCG also avoids rounding an integer when mixed with an integer-valued float. Decimal/scientific notation and metric results remain floating point. Recompute affected older reports from their original inputs before comparison.
 - Prevented console-encoding failures from turning a completed audit into a traceback. Report paths and domain errors use escaped text only when the output stream cannot encode a character; UTF-8 output, files and finding-based exit statuses are preserved. Output I/O failures still propagate.

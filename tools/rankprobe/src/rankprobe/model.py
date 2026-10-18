@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 import math
-from numbers import Real
 
 
 def _identifier(value: str, field: str) -> None:
@@ -14,11 +13,11 @@ def _identifier(value: str, field: str) -> None:
 
 def _number(value: float, field: str, *, nonnegative: bool = False) -> None:
     try:
-        finite = isinstance(value, Real) and math.isfinite(value)
+        finite = isinstance(value, (int, float)) and math.isfinite(value)
     except (OverflowError, TypeError, ValueError):
         finite = False
     if isinstance(value, bool) or not finite:
-        raise ValueError(f"{field} must be a finite number")
+        raise ValueError(f"{field} must be a finite number (Python int or float)")
     if nonnegative and value < 0:
         raise ValueError(f"{field} must be non-negative")
 
