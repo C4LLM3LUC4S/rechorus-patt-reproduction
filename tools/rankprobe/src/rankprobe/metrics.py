@@ -202,6 +202,15 @@ def _ndcg(relevances: list[float], ideal_relevances: list[float], cutoff: int, g
         baseline = 2.0 ** (-largest)
 
         def gains(rel: float) -> float:
+            if 0 < rel < 1:
+                if largest > 1075:
+                    # Each such scaled gain is below half the minimum subnormal.
+                    return 0.0
+                # Subtracting a large grade first can erase a small positive
+                # grade. Retain it before applying the full power-of-two scale.
+                whole = math.floor(largest)
+                scaled = math.expm1(rel * math.log(2)) * 2.0 ** (whole - largest)
+                return math.ldexp(scaled, -whole)
             return max(0.0, 2.0 ** (rel - largest) - baseline)
 
     dcg = math.fsum(

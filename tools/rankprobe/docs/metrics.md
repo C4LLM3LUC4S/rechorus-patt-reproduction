@@ -48,6 +48,8 @@ A pool containing one unique candidate offers no ordering choice. With a known p
 
 Gain calculations use scaled ratios to avoid overflow and cancellation. For very small exponential gains, the stable `expm1(x) / x` ratio preserves distinct finite grades, including subnormal values. This is a numerical implementation of the declared gain function, not a change in relevance meaning or a benchmark claim.
 
+With a large maximum grade, positive grades below one use split power-of-two scaling instead of subtracting nearly equal floating-point gains. For example, ranking grade `2**-46` first against an ideal grade of `512` gives exp2 NDCG@1 of about `7.346625138619131e-169`; before the unreleased fix, cancellation returned zero. These remain binary64 results: values can underflow, and last-bit rounding near the subnormal boundary is not guaranteed to match an exact-arithmetic oracle. The linear gain rule is unchanged.
+
 ## Recall@k
 
 Recall uses the number of distinct relevant items retrieved in the top k divided by the number of relevant items in the independent qrels. It is reported only when `--qrels-complete` explicitly declares a complete denominator for the evaluated queries. That flag is not a measured fact.

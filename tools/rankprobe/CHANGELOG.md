@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Preserve representable small exp2 gain ratios against large grades using split exponent scaling, without changing the linear rule or the existing large-branch calculation for grades at least one.
 - Explain CSV field-size failures, including unused text/metadata columns, with prediction- and qrels-specific recovery guidance that preserves supplied labels and the parser limit.
 - Add direct RankProbe package and first-report links to both introductions and the trial invitation, making the alpha's entry point explicit within the shared reproduction repository.
 - Explain why a positive singleton candidate pool can have NDCG@1 = 1 without testing the ordering of alternatives, with zero, unknown and independent-qrels contrasts.
