@@ -129,6 +129,53 @@ The historical NIST report lists NDCG@10 = 0.2286. This guide does not treat tha
 
 For a follow-up investigation, first verify the Round 1 input fingerprints and inspect the locally reported unknown candidates and tie groups. Check judgment version, gain, relevance threshold, tie policy and query coverage against the intended evaluation. A separate audit with `--unjudged nonrelevant` needs an explicit justification for that assumption and must retain its reported assumption counts; it does not establish complete qrels. Keep any such result separately named and preserve the original files.
 
+## Compare two real retrieval runs
+
+The same [official Round 1 archive](https://ir.nist.gov/trec-covid/archive/archive-round1.html) also provides `ir_covid19_cle_dfr`. Its [submission description](https://ir.nist.gov/trec-covid/archive/round1/ir_covid19_cle_dfr.pdf) describes Lucene abstract-field retrieval with Divergence from Randomness scoring. It provides a real second run for the existing comparison command, without training a model or downloading the corpus.
+
+For a fresh reproduction, use the verified downloader above with `DESTINATION = Path("artifacts/trec-covid-round1-pair-local")` and add this third tuple to `FILES` before executing it:
+
+```python
+    (
+        "ir_covid19_cle_dfr",
+        "https://ir.nist.gov/trec-covid/archive/round1/ir_covid19_cle_dfr",
+        118231,
+        "c919e38726909203d69cff6092f34421d03b6c52ebcfc800f0119a287b827692",
+    ),
+```
+
+The LMD and Round 1 qrels fingerprints remain those listed above. The three files and generated reports stay local under the ignored destination; the run files and record-level reports are not redistributed here. Previously retained exact inputs can be reused after verifying their fingerprints, with the command paths adjusted accordingly.
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m rankprobe compare --run cle_lmd=artifacts/trec-covid-round1-pair-local/ir_covid19_cle_lmd --run cle_dfr=artifacts/trec-covid-round1-pair-local/ir_covid19_cle_dfr --input-format trec --qrels artifacts/trec-covid-round1-pair-local/qrels-rnd1.txt --qrels-format trec --gain linear --tie-policy item_id --cutoffs 1,5,10 --unjudged unknown --out artifacts/trec-covid-round1-pair-local/compare
+```
+
+macOS / Linux:
+
+```sh
+.venv/bin/python -m rankprobe compare --run cle_lmd=artifacts/trec-covid-round1-pair-local/ir_covid19_cle_lmd --run cle_dfr=artifacts/trec-covid-round1-pair-local/ir_covid19_cle_dfr --input-format trec --qrels artifacts/trec-covid-round1-pair-local/qrels-rnd1.txt --qrels-format trec --gain linear --tie-policy item_id --cutoffs 1,5,10 --unjudged unknown --out artifacts/trec-covid-round1-pair-local/compare
+```
+
+The local 0.1.0a4 comparison on 2026-10-18 exited successfully. Input hashes were unchanged, no nonrelevance assumptions were introduced, and qrels completeness remained undeclared. Independent parsing of the original records, Decimal score sorting and reciprocal-rank calculations checked these aggregate observations:
+
+| Observation | CLE-LMD | CLE-DFR |
+| --- | ---: | ---: |
+| Submitted records / queries | 2,601 / 30 | 2,564 / 30 |
+| Supplied known candidate labels | 781 | 825 |
+| Candidate labels still unknown | 1,820 | 1,739 |
+| MRR@10 | 0.6029411764705882 | 0.6795977011494252 |
+| MRR@10 eligible queries | 17 / 30 | 29 / 30 |
+| NDCG@1, @5 and @10 | Unavailable | Unavailable |
+| Recall@1, @5 and @10 | Unavailable | Unavailable |
+
+All 30 queries occur in both runs, but all 30 have different submitted candidate sets. Shared query-item labels have no conflicts. The pair therefore reports `status=not_comparable`, zero structurally matched queries and unavailable matched deltas. This is the tool's same-pool comparison scope, not a finding that the original retrieval systems cannot be evaluated against each other.
+
+Two end-to-end retrievers can legitimately return different documents. Follow the `candidate_set_mismatch` action by inspecting whether candidate selection changed as intended. For a question about reranking alone, obtain a shared candidate export. For a question about the complete retrieval systems, preserve both original runs and establish the intended evaluation protocol separately. Do not intersect their results or invent absent scores or zero labels to force structural matching.
+
+The two displayed MRR@10 values also average different eligible query populations. Their subtraction would not be a matched improvement estimate. NDCG remains unavailable because each query has an unknown submitted candidate; Recall additionally lacks a justified completeness declaration. These results demonstrate report interpretation on public real inputs, not independent human use, time saved or a quality judgment about either submission. See [what a comparison establishes](metrics.md#what-a-comparison-establishes) for the distinction between structural matching and metric eligibility.
+
 ## Separate native-reference check
 
 `scripts/check_trec_covid.py` compares this fixed public input with an explicitly supplied native `trec_eval`. The [NIST data page](https://ir.nist.gov/trec-covid/data.html) states that most measures assume documents absent from qrels are not relevant. That supports a separately declared missing-as-nonrelevant experiment for MRR and linear NDCG; it does not turn absent judgments into supplied labels or establish complete qrels. This checker always keeps `qrels_complete=False`, leaves Recall unavailable, and preserves the default unknown-policy controls above.

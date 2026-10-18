@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Add a fingerprinted real TREC-COVID run-pair walkthrough and explain why expected end-to-end candidate changes, same-pool comparison status and metric eligibility answer different questions.
 - Preserve representable small exp2 gain ratios against large grades using split exponent scaling, without changing the linear rule or the existing large-branch calculation for grades at least one.
 - Explain CSV field-size failures, including unused text/metadata columns, with prediction- and qrels-specific recovery guidance that preserves supplied labels and the parser limit.
 - Add direct RankProbe package and first-report links to both introductions and the trial invitation, making the alpha's entry point explicit within the shared reproduction repository.
