@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Explain RecBole comparison scope using the pinned evaluator's held-out positive counts and user average. A selected-user export must align its users and judgments before comparison; a native Recall value does not justify declaring complete qrels or changing unknown labels.
 - Diagnose malformed Unicode query/item IDs during input validation. JSONL errors now identify the source, line and field instead of failing later while writing UTF-8 reports; direct API qrels receive the same Unicode check. Valid identifiers are preserved without normalization.
 - Reject unsupported numeric objects in `Row` and `Protocol` with a field-specific error. Previously some `numbers.Real` thresholds, including `Fraction` and NumPy scalars, could complete an audit and then fail JSON report serialization. Supported integer values are retained without float conversion; the core gains no dependency.
 - Clarified BEIR's empty-query run-file boundary: preserve intended evaluation IDs separately and check them against predictions and qrels. Broader judgment scope cannot justify automatic zero filling, and queries absent from both files cannot be recovered by an audit.
