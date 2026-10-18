@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Add a bounded ReChorus repeated-negative comparison alongside the existing tie probe. Original synthetic duplicate columns expose column-rank versus unique-item differences; normal exported labels remain unknown, with a separate planted-label control. The guide links the dataset-specific sampler source without changing the core or a benchmark protocol.
 - Explain RecBole comparison scope using the pinned evaluator's held-out positive counts and user average. A selected-user export must align its users and judgments before comparison; a native Recall value does not justify declaring complete qrels or changing unknown labels.
 - Diagnose malformed Unicode query/item IDs during input validation. JSONL errors now identify the source, line and field instead of failing later while writing UTF-8 reports; direct API qrels receive the same Unicode check. Valid identifiers are preserved without normalization.
 - Reject unsupported numeric objects in `Row` and `Protocol` with a field-specific error. Previously some `numbers.Real` thresholds, including `Fraction` and NumPy scalars, could complete an audit and then fail JSON report serialization. Supported integer values are retained without float conversion; the core gains no dependency.

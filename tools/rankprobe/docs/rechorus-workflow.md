@@ -131,6 +131,14 @@ ReChorus's inspected [`evaluate_method`](https://github.com/THUwangcy/ReChorus/b
 
 For a completely judged synthetic row with one positive tied for first with one negative, a positive token sorting first yields NDCG@1 = 1 in RankProbe and 0 in the inspected native evaluator. That separate reference probe explicitly declares the synthetic negatives. The normal sparse export does not infer those zeros. Inspect tie bounds, eligibility and recorded protocol before comparing reported numbers.
 
+## Inspect repeated negative draws separately
+
+Repeated candidates are another possible cause of disagreement, even without a tie involving the positive. In the pinned [Grocery preprocessing notebook](https://github.com/THUwangcy/ReChorus/blob/c164ec4303cc20ddcfbd1b57de366a481811d1e5/data/Grocery_and_Gourmet_Food/Amazon.ipynb), `generate_dev_test` draws negatives with `np.random.randint` and resamples clicked items, without excluding previously drawn negatives. This source permits repeated draws; it does not establish their frequency in any released split. Other preprocessors differ, so do not generalize this observation to every ReChorus dataset.
+
+The prepared dataset and exporter retain repeated item IDs. The native evaluator counts score columns when finding the positive's rank, while RankProbe's main metrics use unique items with the declared maximum-score duplicate policy. Inspect the report's duplicate counts and raw-row sensitivity before interpreting a difference. Repeated sampling may be intentional; a diagnostic does not justify replacing a frozen benchmark protocol. The [existing duplicate example](../examples/duplicates.csv) and [metric semantics](metrics.md#ordering-relevance-and-duplicate-rows) explain that boundary.
+
+The bounded check uses an original event with candidates `[P,H,H,L]` and scores `[0.5,0.9,0.9,0.1]`: the positive has column rank 3 and unique-item rank 2, with no positive-score tie. Its normal export labels only P and leaves H/L unknown, so NDCG remains unavailable. A separate explicitly fully judged synthetic control isolates multiplicity: native NDCG@2 and raw-row NDCG@2 are 0, while unique-item NDCG@2 is `1/log2(3)`. Those planted labels are never copied into the normal export. This is a protocol boundary, not a corrected benchmark score or general metric-parity claim.
+
 ## Reproduce the bounded integration
 
 With the verified source checkout and CPU helper dependencies used by CI:
@@ -139,7 +147,7 @@ With the verified source checkout and CPU helper dependencies used by CI:
 python scripts/check_rechorus_workflow.py --source path/to/ReChorus --out rechorus-workflow-example
 ```
 
-The check uses normally imported official `BaseRunner` and `GeneralModel.Dataset` on original synthetic data. It exercises prepared dataset rows, collation, model scoring and the actual runner prediction loop, then captures NPZ and calls the existing RankProbe exporter and installed CLI. A separate native evaluator probe asserts the expected tie difference. The full-sort workflow adds actual `BaseReader` construction from tiny generated CSVs, raw NPZ rejection, mask-aware safe export and a separate installed-CLI report. The default-buffer path verifies cached feeds remain unchanged, and a separate mode-switch probe checks rejection of stale sampled candidates. It does not train a model, use the bundled benchmark data, or validate all upstream model families.
+The check uses normally imported official `BaseRunner` and `GeneralModel.Dataset` on original synthetic data. It exercises prepared dataset rows, collation, model scoring and the actual runner prediction loop, then captures NPZ and calls the existing RankProbe exporter and installed CLI. Separate native evaluator probes isolate the positive-tie and repeated-negative boundaries above. The full-sort workflow adds actual `BaseReader` construction from tiny generated CSVs, raw NPZ rejection, mask-aware safe export and a separate installed-CLI report. The default-buffer path verifies cached feeds remain unchanged, and a separate mode-switch probe checks rejection of stale sampled candidates. It does not execute the public preprocessing notebooks, train a model, use the bundled benchmark data, or validate all upstream model families.
 
 CI verifies source archive SHA256 `0e66340a9d496ca6277ded4f6f0b51f92bf739eba4f26a14d1e8a26cb0c75cd1`, extracts only the source subtree and checks the runner/model source bytes before execution. The upstream archive contains bundled dataset files, but those are not extracted, loaded or used by this job. The checker never imports `main.py` and does not execute its presentation exporter; the CSV limitation above is established from the fixed source.
 

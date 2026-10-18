@@ -219,6 +219,145 @@ def run_audit(out: Path, predictions: Path, *, name: str = "sampled") -> dict:
         raise GateError("RankProbe CLI: JSON missing or invalid") from exc
 
 
+def _check_duplicate_export(out: Path, np, scores, candidates, event_ids, export_npz) -> dict:
+    """Keep the sparse export separate from an explicitly judged synthetic oracle."""
+    from rankprobe.audit import audit_run
+    from rankprobe.io import read_predictions
+    from rankprobe.model import Protocol, Row
+    from rankprobe.report import write_report
+
+    directory = new_output_directory(out / "sampled-duplicates")
+    directory.mkdir(exist_ok=False)
+    snapshots = [value.copy() for value in (scores, candidates, event_ids)]
+    archive = directory / "duplicate-scores.npz"
+    with archive.open("xb") as handle:
+        np.savez(handle, scores=scores, item_id=candidates, query_id=event_ids)
+    archive_hash = digest(archive)
+    destination = directory / "predictions.csv"
+    metadata = export_npz(archive, destination, positive_index=0,
+                          other_candidates="unknown", identity="source")
+    sidecar = destination.with_suffix(".csv.metadata.json")
+    require(metadata["source_sha256"] == archive_hash
+            and metadata["identity_mode"] == "source"
+            and metadata["other_candidates"] == "unknown"
+            and metadata["qrels_complete"] is False,
+            "sampled duplicates: source identity or unknown export declaration changed")
+    rows = read_predictions(destination)
+    require(len(rows) == 4 and [row.item_id for row in rows] == ["1", "2", "2", "3"]
+            and [row.query_id for row in rows] == [str(event_ids[0])] * 4
+            and [row.score for row in rows] == scores[0].tolist(),
+            "sampled duplicates: repeated source IDs or score columns were lost")
+    require([row.relevance for row in rows] == [1, None, None, None],
+            "sampled duplicates: exported unknown labels were filled")
+    require(json.loads(sidecar.read_text(encoding="utf-8")) == metadata,
+            "sampled duplicates: written sidecar differs")
+    inputs = (archive, destination, sidecar)
+    hashes = {path.name: digest(path) for path in inputs}
+    report = run_audit(directory, destination, name="synthetic-sampled-duplicates")
+    require(report["summary"]["rows"] == 4
+            and report["summary"]["unique_candidates"] == 3
+            and report["summary"]["duplicate_rows"] == 1
+            and report["summary"]["judged_candidates"] == 1
+            and report["summary"]["unknown_candidates"] == 2
+            and report["summary"]["assumed_nonrelevant_candidates"] == 0
+            and report["protocol"]["unjudged"] == "unknown"
+            and report["protocol"]["qrels_complete"] is False,
+            "sampled duplicates: CLI changed candidate or judgment counts")
+    require(report["metrics"]["mrr@2"]["value"] is None
+            and report["metrics"]["ndcg@2"]["value"] is None
+            and "duplicate_candidates" in {finding["code"] for finding in report["findings"]},
+            "sampled duplicates: CLI invented sparse metrics or missed repetitions")
+
+    # These planted labels belong only to this invented oracle, never the CSV.
+    oracle_rows = [Row(row.query_id, row.item_id, row.score, int(index == 0))
+                   for index, row in enumerate(rows)]
+    oracle = audit_run(oracle_rows, Protocol(cutoffs=(2,)),
+                       run_name="explicitly-judged-synthetic-duplicate-oracle")
+    unique = oracle["metrics"]["ndcg@2"]["value"]
+    raw = oracle["duplicates"]["metric_sensitivity"]["raw_rows"]["ndcg@2"]["value"]
+    require(math.isclose(unique, 1 / math.log2(3), rel_tol=0, abs_tol=1e-14)
+            and raw == 0,
+            "sampled duplicates: planted-label unique and raw-row ranks differ from oracle")
+    write_report(oracle, directory / "explicitly-judged-oracle")
+    require({path.name: digest(path) for path in inputs} == hashes
+            and all(np.array_equal(value, snapshot) for value, snapshot
+                    in zip((scores, candidates, event_ids), snapshots)),
+            "sampled duplicates: original arrays or exported source files changed")
+    return {
+        "event_ids": event_ids.tolist(), "source_item_ids": candidates.tolist(),
+        "scores": scores.tolist(), "exported_rows": 4, "unique_candidates": 3,
+        "duplicate_rows": 1, "known_candidates": 1, "unknown_candidates": 2,
+        "assumed_nonrelevant_candidates": 0, "qrels_complete": False,
+        "sparse_mrr_at_2": None, "sparse_ndcg_at_2": None,
+        "explicit_synthetic_oracle_unique_ndcg_at_2": unique,
+        "explicit_synthetic_oracle_raw_row_ndcg_at_2": raw,
+        "source_files_sha256": hashes,
+    }
+
+
+def _check_sampled_duplicate_workflow(out: Path, np, pd, torch,
+                                      BaseRunner, GeneralModel, export_npz) -> dict:
+    """Exercise repeated supplied negatives through the genuine prepared runner."""
+    corpus = SimpleNamespace(n_users=8, n_items=4, data_df={"test": pd.DataFrame({
+        "user_id": [7], "item_id": [1], "neg_items": [np.array([2, 2, 3])],
+    })})
+    model_args = _model_arguments(GeneralModel, torch, test_all=0, num_neg=3)
+
+    class Model(GeneralModel):
+        def __init__(self):
+            super().__init__(model_args, corpus)
+            self.register_buffer("score_table", torch.tensor([0, .5, .9, .1], dtype=torch.float64))
+
+        def forward(self, feed_dict):
+            return {"prediction": self.score_table[feed_dict["item_id"]].clone()}
+
+    model = Model()
+    dataset = GeneralModel.Dataset(model, corpus, "test")
+    dataset.prepare()
+    cached_feeds = _cache_snapshot(dataset, np)
+    candidates = np.stack([dataset[0]["item_id"]])
+    users_before = np.array(dataset.data["user_id"], copy=True)
+    targets_before = np.array(dataset.data["item_id"], copy=True)
+    negatives_before = np.stack(dataset.data["neg_items"]).copy()
+    table_before, training_before = model.score_table.clone(), model.training
+    parser = BaseRunner.parse_runner_args(argparse.ArgumentParser())
+    arguments = parser.parse_args([])
+    arguments.train, arguments.log_file, arguments.eval_batch_size = 0, "synthetic.log", 1
+    arguments.num_workers, arguments.pin_memory = 0, 0
+    runner = BaseRunner(arguments)
+    try:
+        scores = runner.predict(dataset)
+    finally:
+        model.train(training_before)
+    scores_before = scores.copy()
+    require(np.array_equal(candidates, [[1, 2, 2, 3]])
+            and np.array_equal(scores, [[.5, .9, .9, .1]])
+            and np.all(scores[:, 1:] != scores[:, :1]),
+            "sampled duplicates: native fixture layout or positive no-tie condition differs")
+    native = BaseRunner.evaluate_method(scores, [2], ["NDCG"])
+    require(native["NDCG@2"] == 0,
+            "sampled duplicates: native column-count NDCG differs from rank-three oracle")
+    observations = _check_duplicate_export(
+        out, np, scores, candidates, np.array(["synthetic-duplicate-event"]), export_npz,
+    )
+    require(model.buffer == 1 and model.test_all == 0 and model.training == training_before
+            and torch.equal(model.score_table, table_before)
+            and np.array_equal(scores, scores_before)
+            and np.array_equal(dataset[0]["item_id"], candidates[0])
+            and np.array_equal(dataset.data["user_id"], users_before)
+            and np.array_equal(dataset.data["item_id"], targets_before)
+            and np.array_equal(np.stack(dataset.data["neg_items"]), negatives_before)
+            and _cache_unchanged(dataset, cached_feeds, np)
+            and corpus.data_df["test"]["neg_items"][0].tolist() == [2, 2, 3],
+            "sampled duplicates: source fixture, prepared cache or model state changed")
+    observations.update({
+        "native_column_rank": 3, "native_ndcg_at_2": float(native["NDCG@2"]),
+        "prepared_cached_feed_rows": len(cached_feeds), "positive_score_tie": False,
+        "interpretation": "Repeated negative columns versus unique-item ranking, not metric parity or a benchmark correction.",
+    })
+    return observations
+
+
 def _check_full_sort_workflow(out: Path, np, torch, BaseRunner, GeneralModel, export_npz) -> dict:
     """Check the exact native full-sort contract; retain the raw NPZ rejection."""
     from rankprobe.io import read_predictions
@@ -689,12 +828,17 @@ def check_workflow(out: Path, source: Path) -> dict:
         out, np, torch, BaseRunner, GeneralModel, export_npz,
     )
     stale_cache = _check_stale_prepared_cache(out, np, torch, BaseRunner, GeneralModel)
+    sampled_duplicates = _check_sampled_duplicate_workflow(
+        out, np, pd, torch, BaseRunner, GeneralModel, export_npz,
+    )
     inputs = (archive, exported_csv, metadata_path, out / "unsupported-full-sort.npz",
               out / "full-sort-export" / "predictions.csv",
               out / "full-sort-export" / "exclusions.json",
               *sorted((out / "full-sort-inputs" / "synthetic").glob("*.csv")),
               out / "stale-cache-predictions.npz",
               *sorted((out / "stale-cache-inputs" / "synthetic").glob("*.csv")))
+    inputs += tuple(out / "sampled-duplicates" / name
+                    for name in sampled_duplicates["source_files_sha256"])
     hashes_before = {str(path.relative_to(out)): digest(path) for path in inputs}
     report = run_audit(out, exported_csv)
     require(report["report_type"] == "audit", "audit: wrong report type")
@@ -752,6 +896,7 @@ def check_workflow(out: Path, source: Path) -> dict:
             "official_default_buffer": model.buffer,
             "prepared_sampled_cached_feed_rows": len(cached_feeds),
             "stale_prepared_cache": stale_cache,
+            "sampled_duplicate_workflow": sampled_duplicates,
             "explicit_synthetic_tie_oracle": {
                 "upstream_hr_at_1": float(upstream_tie["HR@1"]),
                 "upstream_ndcg_at_1": float(upstream_tie["NDCG@1"]),
@@ -791,6 +936,10 @@ def check_workflow(out: Path, source: Path) -> dict:
             "actual_stale_cache_after_test_all_protocol_change_observed": True,
             "stale_cache_full_sort_export_rejected_before_output": True,
             "stale_cache_inputs_and_fresh_model_state_restored": True,
+            "actual_sampled_duplicate_dataset_and_runner_called": True,
+            "sampled_duplicate_ids_scores_and_unknowns_preserved": True,
+            "sampled_duplicate_native_column_rank_differs_from_unique_item_oracle": True,
+            "sampled_duplicate_fixture_inputs_cache_and_model_state_preserved": True,
         },
         "limitations": [
             "Original synthetic fixtures only; no benchmark data was loaded or used.",
@@ -798,6 +947,7 @@ def check_workflow(out: Path, source: Path) -> dict:
             "Positive column zero is a checked fixture convention and a caller assertion for other inputs.",
             "The sampled NPZ example uses export-local row/item pseudonyms; full-sort event/item IDs are preserved with caller-owned alignment.",
             "The separate tie oracle supplies explicit synthetic zeros; the default exported run preserves unknown labels.",
+            "The duplicate boundary uses supplied original synthetic negatives, not an executed public sampler; its separate planted-label oracle does not fill the normal export's unknown judgments.",
             "Full-sort export covers only the pinned native GeneralModel.Dataset layout and declared event row alignment; arbitrary overridden full-sort models are unsupported.",
             "Residual clicked sets include validation/test interactions; this is an upstream candidate policy, not causal history or a leakage certificate.",
             "The stale-cache counterexample deliberately changes test_all after prepare without rebuilding; it is a mutable caller workflow risk, not evidence that the normal default is broken.",
