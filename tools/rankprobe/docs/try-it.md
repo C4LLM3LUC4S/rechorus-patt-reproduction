@@ -92,7 +92,7 @@ For saved MTEB retrieval predictions, use the [scope-specific score-file recipe]
 
 > I am testing RankProbe, an early open-source offline audit tool for recommendation and retrieval evaluation exports. It takes CSV/JSONL or TREC-style runs and creates local HTML/JSON reports about ties, duplicate candidates, query coverage, and uncertain labels. Would you try one small export you are allowed to inspect and tell me whether it reveals anything useful? It takes no API key and does not upload your input. You do not need to share the source data or the whole report. The documented synthetic example is a safe first step. This is an alpha trial; it does not certify benchmark correctness.
 
-Share the repository / branch link from the main README together with this page. This invitation has not been sent by the project, and it is not evidence of external adoption.
+Share the direct [RankProbe package page](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/tree/feature/rankprobe-alpha/tools/rankprobe) and [this walkthrough](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/blob/feature/rankprobe-alpha/tools/rankprobe/docs/try-it.md). The repository's top-level README describes the original course reproduction; the package page is the entry point for this alpha. This invitation has not been sent by the project, and it is not evidence of external adoption.
 
 ## Six feedback questions
 

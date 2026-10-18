@@ -1,6 +1,6 @@
 # RankProbe
 
-首个 alpha 暂放在现有复现仓库的独立目录与分支。没有 Git 时，可[下载源码 ZIP](https://codeload.github.com/C4LLM3LUC4S/rechorus-patt-reproduction/zip/refs/heads/feature/rankprobe-alpha)，解压，在解压后的仓库文件夹打开终端，再运行 `cd tools/rankprobe`。
+首个 alpha 暂放在现有复现仓库的独立目录与分支。试用时可分享直达 [RankProbe 项目页](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/tree/feature/rankprobe-alpha/tools/rankprobe)和[首次报告指南](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/blob/feature/rankprobe-alpha/tools/rankprobe/docs/try-it.md)的链接。没有 Git 时，可[下载源码 ZIP](https://codeload.github.com/C4LLM3LUC4S/rechorus-patt-reproduction/zip/refs/heads/feature/rankprobe-alpha)，解压，在解压后的仓库文件夹打开终端，再运行 `cd tools/rankprobe`。
 
 Windows 建议选择较短的解压路径；如果创建环境时 pip/ensurepip 提示路径过长，请换一个较短的文件夹重新开始。
 

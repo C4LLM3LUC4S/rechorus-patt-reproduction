@@ -44,6 +44,8 @@ The scope is part of the result:
 
 When ideal DCG is zero, the query contributes zero by this implementation's declared convention. No relevant judged item is different from an unjudged query. Inspect coverage and warnings before interpreting either.
 
+A pool containing one unique candidate offers no ordering choice. With a known positive label, its candidate-pool NDCG@1 is 1; a known zero contributes 0, while an unknown label remains unscored under the default policy. A value of 1 in this case does not show that the model can order alternatives. Independent qrels can change the reference: with linear gain, a returned item graded 1 and an unreturned item graded 2 give NDCG@1 = 0.5 against the known qrels pool. Check whether export truncation or filtering reduced the intended candidate set before interpreting a singleton result. Neither example establishes complete judgments or justifies filling unknown labels with zero.
+
 Gain calculations use scaled ratios to avoid overflow and cancellation. For very small exponential gains, the stable `expm1(x) / x` ratio preserves distinct finite grades, including subnormal values. This is a numerical implementation of the declared gain function, not a change in relevance meaning or a benchmark claim.
 
 ## Recall@k

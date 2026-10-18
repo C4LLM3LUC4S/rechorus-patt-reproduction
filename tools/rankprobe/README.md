@@ -4,6 +4,8 @@
 
 RankProbe is a local, model-free audit tool for recommendation and retrieval experiments. Give it candidate scores and relevance judgments; it produces a readable HTML report and machine-readable JSON with examples, metric assumptions, and sensitivity results. No model inference, cloud account, or API key is needed. The core uses the Python standard library.
 
+For a trial, share the [RankProbe package page](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/tree/feature/rankprobe-alpha/tools/rankprobe) and [first-report walkthrough](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/blob/feature/rankprobe-alpha/tools/rankprobe/docs/try-it.md). Both links open the alpha's own directory inside the reproduction repository.
+
 [中文说明](README.zh-CN.md) · [Input contract](docs/input-format.md) · [Metric semantics](docs/metrics.md) · [CLI / Python API](docs/usage.md) · [First local report](docs/try-it.md) · [Limitations](docs/limitations.md)
 
 Using BEIR? The [export/evaluation recipe](docs/beir-workflow.md) preserves the retrieved snapshot, makes self-match filtering and export depth explicit, and transfers existing qrels without inventing labels.
