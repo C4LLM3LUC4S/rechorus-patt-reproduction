@@ -15,6 +15,8 @@ With the default `auto` format, `.csv` and `.jsonl` select those loaders; `.run`
 
 Identifiers must be strings. CSV fields are strings; JSONL identifiers must be quoted strings, not numbers. Keep their spelling consistent across files. IDs such as `01` and `1` are different; ascending string ordering puts `10` before `2`. Identifiers are not automatically normalized, so remove unintended whitespace before exporting.
 
+Identifiers must be UTF-8 encodable text. Malformed Unicode, such as an unpaired surrogate in a JSON escape, is rejected during input validation with the affected field; file loaders also include the source and line. Normal Chinese text, emoji and valid JSON surrogate pairs are preserved without changing the identifier.
+
 ```csv
 query_id,item_id,score,relevance
 request_001,item_a,1.2,2

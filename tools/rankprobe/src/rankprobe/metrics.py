@@ -13,7 +13,7 @@ from dataclasses import replace
 import math
 from typing import Iterable
 
-from .model import Protocol, Row
+from .model import Protocol, Row, _unicode_text
 
 Qrels = dict[str, dict[str, float | None]]
 MRR_ELIGIBILITY_RULE = "known_first_relevant_prefix"
@@ -54,9 +54,11 @@ def validate_inputs(
                 raise ValueError(
                     "qrels query IDs must be nonempty strings and judgments must be mappings"
                 )
+            _unicode_text(query_id, "qrels query_id")
             for item_id, relevance in judgments.items():
                 if not isinstance(item_id, str) or not item_id:
                     raise ValueError("qrels item IDs must be nonempty strings")
+                _unicode_text(item_id, "qrels item_id")
                 if relevance is None:
                     if protocol.qrels_complete:
                         raise ValueError(

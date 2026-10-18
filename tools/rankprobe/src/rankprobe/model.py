@@ -4,11 +4,19 @@ from dataclasses import dataclass
 import math
 
 
+def _unicode_text(value: str, field: str) -> None:
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ValueError(f"{field} must contain valid Unicode text") from exc
+
+
 def _identifier(value: str, field: str) -> None:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field} must be a non-empty string")
     if len(value) > 4096:
         raise ValueError(f"{field} exceeds the 4096-character input limit")
+    _unicode_text(value, field)
 
 
 def _number(value: float, field: str, *, nonnegative: bool = False) -> None:
