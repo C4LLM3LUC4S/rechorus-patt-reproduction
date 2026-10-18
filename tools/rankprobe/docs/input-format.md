@@ -4,6 +4,12 @@ RankProbe reads UTF-8 CSV, JSONL, and TREC-style run/qrels text, including a UTF
 
 With the default `auto` format, `.csv` and `.jsonl` select those loaders; `.run` / `.trec` select TREC predictions and `.qrels` selects TREC judgments. Other extensions require an explicit `--input-format` or `--qrels-format` (`csv`, `jsonl`, or `trec`). File contents are not guessed. In `compare`, `auto` detects each run separately; an explicit input format applies to every run.
 
+### CSV field-size errors
+
+CSV parsing reads every column before RankProbe selects the evaluation fields. A long document body or metadata value can therefore exceed [Python's current CSV field-size limit](https://docs.python.org/3.12/library/csv.html#csv.field_size_limit), even in an unused column. RankProbe preserves that limit; it does not silently shorten values or change the process-wide parser setting.
+
+If the error says `field larger than field limit`, export a **new copy** from your source with only `query_id,item_id,score` and any supplied `relevance` for predictions, or `query_id,item_id,relevance` for qrels. Keep identifiers, scores, judgments and row order unchanged; missing prediction judgments must stay unknown. Alternatively, export equivalent JSONL from your source. JSONL avoids the CSV parser's field-size limit but retains RankProbe's identifier and numeric validation. Preserve the original export for comparison.
+
 ## Prediction rows
 
 | Field | Required | Meaning |

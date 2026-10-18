@@ -82,7 +82,21 @@ def _records(path: Path, required: set[str], format: str) -> Iterator[tuple[int,
                             f"{path}:{line_number}: missing fields: {', '.join(sorted(missing))}"
                         )
                     yield line_number, record
-    except (OSError, UnicodeError, csv.Error) as exc:
+    except csv.Error as exc:
+        message = f"{path}: cannot read input: {exc}"
+        if str(exc).startswith("field larger than field limit"):
+            fields = (
+                "query_id,item_id,score and relevance when supplied"
+                if "score" in required else "query_id,item_id,relevance"
+            )
+            message += (
+                ". The CSV field limit also applies to unused text columns. "
+                f"Export a new minimal CSV with {fields}, or equivalent JSONL. "
+                "Preserve identifiers, numeric values and all supplied labels; "
+                "keep the original unchanged."
+            )
+        raise InputError(message) from exc
+    except (OSError, UnicodeError) as exc:
         raise InputError(f"{path}: cannot read input: {exc}") from exc
 
 

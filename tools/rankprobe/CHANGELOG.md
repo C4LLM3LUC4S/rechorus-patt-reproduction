@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Explain CSV field-size failures, including unused text/metadata columns, with prediction- and qrels-specific recovery guidance that preserves supplied labels and the parser limit.
 - Add direct RankProbe package and first-report links to both introductions and the trial invitation, making the alpha's entry point explicit within the shared reproduction repository.
 - Explain why a positive singleton candidate pool can have NDCG@1 = 1 without testing the ordering of alternatives, with zero, unknown and independent-qrels contrasts.
 - Add a bounded ReChorus repeated-negative comparison alongside the existing tie probe. Original synthetic duplicate columns expose column-rank versus unique-item differences; normal exported labels remain unknown, with a separate planted-label control. The guide links the dataset-specific sampler source without changing the core or a benchmark protocol.
