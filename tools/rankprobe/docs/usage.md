@@ -66,6 +66,8 @@ python -m rankprobe audit predictions.csv --fail-on warning --out reports/check
 
 `--fail-on never` permits findings, not invalid inputs. Do not treat exit zero as certification of an experiment. Match your automation to structured finding codes and schema version `0.1`, rather than searching HTML text.
 
+For a complete cross-platform runner that keeps completed reports before returning a findings failure, see the [local CI recipe](local-ci.md).
+
 ## Python API
 
 ```python
