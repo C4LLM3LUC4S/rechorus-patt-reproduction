@@ -209,7 +209,13 @@ def read_qrels(path: str | Path, *, format: str = "auto") -> dict[str, dict[str,
                 _identifier(item, "item_id")
                 relevance = _float(grade, "relevance")
                 if relevance < 0 and relevance != -1:
-                    raise ValueError("TREC relevance must be non-negative or -1 (unjudged)")
+                    raise ValueError(
+                        "TREC relevance must be non-negative or -1 (unjudged). "
+                        "Other negative values may be source-specific annotations; keep the "
+                        "original and check its grade definition and evaluator. "
+                        "--unjudged does not reinterpret them. See "
+                        "docs/input-format.md#source-specific-negative-judgments"
+                    )
                 labels = result.setdefault(query, {})
                 if item in labels:
                     raise ValueError(

@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Explain source-specific negative TREC judgments in errors and the input guide. Unsupported grades remain rejected even with missing-label or completeness options; no annotations are dropped or remapped.
 - Add a tested local CI orchestration recipe that handles findings failures before returning their original status, rejects stale output, and distinguishes invalid runs and partial metrics. The example lists local report files; host artifact retention remains an explicit integration step.
 - Explain the ordinary-versus-subtopic judgment boundary in TREC duplicate errors and the input guide. Four-column shape alone cannot identify intent semantics; valid nonzero ordinary iterations and existing accepted labels remain unchanged.
 - Record a path-free core-source identity in CLI reports so unreleased builds sharing a version can be distinguished. Per-file and aggregate hashes describe available source bytes, not loaded bytecode, the complete environment or evaluation quality; unreadable source is recorded as unavailable.
