@@ -296,6 +296,57 @@ def check_duplicate_loader_judgments(out: Path) -> dict:
     }
 
 
+def check_bom_loader_judgments(out: Path) -> dict:
+    from beir.datasets.data_loader import GenericDataLoader
+    from rankprobe.io import read_qrels
+
+    folder = out / "loader-bom-qrels"
+    folder.mkdir(exist_ok=False)
+    shared = out / "loader-split-scope" / "shared"
+    reused_inputs = (shared / "corpus.jsonl", shared / "queries.jsonl")
+    hashes_before = {path.relative_to(out).as_posix(): digest(path) for path in reused_inputs}
+    source = new_file(folder / "bom-source.tsv")
+    with source.open("x", encoding="utf-8-sig", newline="\n") as handle:
+        handle.write("query-id\tcorpus-id\tscore\nq_shared\td_dev\t1\nq_shared\td_test\t-1\n")
+    hashes_before[source.relative_to(out).as_posix()] = digest(source)
+    require(source.read_bytes().startswith(b"\xef\xbb\xbf"),
+            "BOM qrels: generated source has no UTF-8 BOM")
+    corpus, queries, judgments = GenericDataLoader(
+        corpus_file=str(reused_inputs[0]), query_file=str(reused_inputs[1]),
+        qrels_file=str(source),
+    ).load_custom()
+    require({"d_dev", "d_test"} <= set(corpus) and set(queries) == {"q_shared"},
+            "BOM qrels: native corpus or query scope differs")
+    require(judgments == {"q_shared": {"d_dev": 1, "d_test": -1}}
+            and all(type(grade) is int for grade in judgments["q_shared"].values()),
+            "BOM qrels: native loader changed supplied integer judgments")
+    mapped = new_file(folder / "mapped.qrels")
+    with mapped.open("x", encoding="utf-8", newline="\n") as handle:
+        for query_id, items in judgments.items():
+            for item_id, grade in items.items():
+                handle.write(f"{query_id} 0 {item_id} {grade}\n")
+    hashes_before[mapped.relative_to(out).as_posix()] = digest(mapped)
+    parsed = read_qrels(mapped)
+    require(parsed == {"q_shared": {"d_dev": 1, "d_test": None}}
+            and parsed["q_shared"]["d_test"] is None,
+            "BOM qrels: mapped explicit unknown was changed or resolved as zero")
+    inputs = (*reused_inputs, source, mapped)
+    require(all(digest(path) == hashes_before[path.relative_to(out).as_posix()]
+                for path in inputs), "BOM qrels: original or generated inputs changed")
+    return {
+        "synthetic_input_sha256": {
+            path.relative_to(out).as_posix(): hashes_before[path.relative_to(out).as_posix()]
+            for path in (source, mapped)
+        },
+        "observations": {
+            "source_has_utf8_bom": True, "native_judgments": judgments,
+            "mapped_trec_judgments": parsed, "source_judgment_rows": 2,
+            "original_and_generated_inputs_unchanged": True,
+        },
+        "checks": {"bom_tsv_native_and_explicit_unknown_preserved": True},
+    }
+
+
 def check_workflow(out: Path) -> dict:
     out = new_output_directory(out)
     try:
@@ -449,6 +500,7 @@ def check_workflow(out: Path) -> dict:
             "integration: original dictionaries changed")
     loader_scope = check_split_loader_scope(out)
     duplicate_scope = check_duplicate_loader_judgments(out)
+    bom_scope = check_bom_loader_judgments(out)
 
     result = {
         "status": "passed", "python": platform.python_version(), "platform": sys.platform,
@@ -456,6 +508,7 @@ def check_workflow(out: Path) -> dict:
         "synthetic_input_sha256": {
             **hashes_before, **loader_scope["synthetic_input_sha256"],
             **duplicate_scope["synthetic_input_sha256"],
+            **bom_scope["synthetic_input_sha256"],
         },
         "observations": {
             "original_mrr_at_1": 0.5, "filtered_mrr_at_1": 1.0,
@@ -463,6 +516,7 @@ def check_workflow(out: Path) -> dict:
             "default_export_candidates": 1000, "explicit_export_candidates": 1002,
             "generic_data_loader_split_scope": loader_scope["observations"],
             "generic_data_loader_source_duplicates": duplicate_scope["observations"],
+            "generic_data_loader_bom_qrels": bom_scope["observations"],
         },
         "checks": {
             "real_beir_helpers_called": True, "real_beir_evaluation_called": True,
@@ -475,6 +529,7 @@ def check_workflow(out: Path) -> dict:
             "source_hashes_match": True, "synthetic_inputs_unchanged": True,
             **loader_scope["checks"],
             **duplicate_scope["checks"],
+            **bom_scope["checks"],
         },
         "limitations": [
             "Original synthetic export/evaluation and generated local dataset-loader cases only; "

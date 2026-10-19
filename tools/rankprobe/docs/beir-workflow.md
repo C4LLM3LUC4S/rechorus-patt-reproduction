@@ -14,7 +14,7 @@ from pathlib import Path
 
 source = Path("/absolute/path/to/permitted-dataset/qrels/test.tsv")
 seen = set()
-with source.open("r", encoding="utf-8", newline="") as handle:
+with source.open("r", encoding="utf-8-sig", newline="") as handle:
     rows = csv.reader(handle, delimiter="\t", strict=True)
     if next(rows, None) != ["query-id", "corpus-id", "score"]:
         raise ValueError(f"{source}: expected query-id, corpus-id, score TSV header")
@@ -27,7 +27,7 @@ with source.open("r", encoding="utf-8", newline="") as handle:
         seen.add(pair)
 ```
 
-This rejects equal-grade repeats too; it does not deduplicate or select a grade. It writes nothing and does not cast or reinterpret supplied `1`, `0` or `-1`. It retains one key per unique pair in memory. It checks only the header, row width, nonblank IDs and pair uniqueness, not grade semantics, split provenance or completeness. Preserve the source and resolve repeats against its intended judgment unit. Intentional multiple judgments need an explicitly documented source policy and an evaluator or export that preserves their judgment unit; do not silently merge them or invent zeros to pass this check. Continue with fresh split loading below only after reviewing the source.
+An optional UTF-8 BOM before the exact header is accepted without modifying the source. This rejects equal-grade repeats too; it does not deduplicate or select a grade. It writes nothing and does not cast or reinterpret supplied `1`, `0` or `-1`. It retains one key per unique pair in memory. It checks only the header, row width, nonblank IDs and pair uniqueness, not grade semantics, split provenance or completeness. Preserve the source and resolve repeats against its intended judgment unit. Intentional multiple judgments need an explicitly documented source policy and an evaluator or export that preserves their judgment unit; do not silently merge them or invent zeros to pass this check. Continue with fresh split loading below only after reviewing the source.
 
 ## Keep split loading independent
 
@@ -114,6 +114,8 @@ The output directory must be new and its parent must exist. The check uses the a
 The loader cases compare reuse and fresh instances for shared and disjoint dev/test query IDs. The summary records accumulated judgments, mutation of a previously returned qrels reference, the disjoint-query error and fresh per-split scopes, alongside hashes of the unchanged generated input files. These cases target the pinned loader; they do not establish split provenance for an arbitrary existing export.
 
 Separate source-row cases use fresh loaders with two conflicting TSV rows in each order. They retain the original TSV, the one-row mapping export and a row-preserving TREC copy made only from the verified invented tokens. The existing core accepts the surviving mapped judgment but rejects the repeated original pair. This isolates loss before export, not a new aggregation rule or a general TSV converter; the read-only preflight above checks the original rows instead.
+
+A separate BOM-header fixture checks that native integer grades `1` and `-1` are preserved and the mapped TREC `-1` is explicitly unknown in RankProbe, with the original source bytes unchanged.
 
 The synthetic same-ID example deliberately changes submitted MRR@1 from 0.5 to 1 by filtering an irrelevant first candidate. The unchanged structurally matched query has MRR@1 = 1 in both runs, so its delta is zero. An unjudged candidate remains unjudged throughout. This demonstrates an intended preprocessing effect, not a newly discovered upstream model bug.
 

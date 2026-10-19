@@ -64,3 +64,17 @@ def test_preflight_leaves_supplied_grade_strings_and_source_unchanged(tmp_path):
     result = invoke(tmp_path, HEADER + "qA\td1\t1\nqA\td0\t0\nqA\tdu\t-1\n")
     assert result.returncode == 0, result.stderr
     assert result.stdout == result.stderr == ""
+
+
+def test_preflight_accepts_bom_without_rewriting_grade_strings_or_source(tmp_path):
+    result = invoke(tmp_path, "\ufeff" + HEADER + "qA\td1\t1\nqA\td0\t0\nqA\tdu\t-1\n")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == result.stderr == ""
+
+
+def test_preflight_still_rejects_conflicting_pairs_after_bom_header(tmp_path):
+    result = invoke(tmp_path, "\ufeff" + HEADER + "qA\tdA\t1\nqA\tdA\t0\n")
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "repeated query-document pair" in result.stderr
+    assert "expected query-id" not in result.stderr
