@@ -212,7 +212,13 @@ def read_qrels(path: str | Path, *, format: str = "auto") -> dict[str, dict[str,
                     raise ValueError("TREC relevance must be non-negative or -1 (unjudged)")
                 labels = result.setdefault(query, {})
                 if item in labels:
-                    raise ValueError(f"duplicate qrels entry for query {query!r}, item {item!r}")
+                    raise ValueError(
+                        f"duplicate qrels entry for query {query!r}, item {item!r}; "
+                        "expected one ordinary query-item judgment. Field 2 is ignored; "
+                        "if it represents subtopics/intents, use a scope-appropriate ordinary "
+                        "export or the native evaluator. See "
+                        "docs/input-format.md#subtopic-and-diversity-judgments"
+                    )
                 labels[item] = None if relevance == -1 else relevance
             except ValueError as exc:
                 raise InputError(f"{source}:{line_number}: {exc}") from exc

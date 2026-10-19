@@ -97,6 +97,23 @@ python -m rankprobe audit results.txt --input-format trec --qrels labels.txt --q
 
 The [NIST qrels explanation](https://trec.nist.gov/data/qrels_eng/) documents a historical evaluation convention that treats absent judgments as nonrelevant. RankProbe defaults to preserving uncertainty. Select `--unjudged nonrelevant` only when that is your intended evaluation assumption; inspect excluded queries either way. Reading a TREC file does not select trec_eval's tie or averaging conventions. See the [synthetic retrieval walkthrough](../examples/trec/README.md).
 
+### Subtopic and diversity judgments
+
+The four-column shape can also describe a different judgment unit. The [NIST TREC 2011 Web evaluation README](https://trec.nist.gov/data/web/11/eval-README.txt) defines field 2 in its diversity qrels as a **subtopic**, so one query/document can have several judgments. The official `qrels-for-ndeval` retains this dimension. RankProbe supports ordinary query-item judgments and does not implement subtopic or diversity evaluation.
+
+For example, these two original invented rows give one item different judgments for two subtopics:
+
+```text
+qA 1 dA 1
+qA 2 dA 0
+```
+
+RankProbe rejects the second row as a duplicate query-item judgment because it ignores field 2. Check whether your source contains accidental ordinary duplicates or intentionally distinct subtopic/intent judgments before changing it. Keep subtopic-aware judgments with their native evaluator when that is the intended evaluation. For an ordinary relevance audit, choose an explicitly defined ordinary judgment scope/export whose grades also meet the contract above. Do not deduplicate, take the maximum grade, or discard the subtopic field simply to make the file load. You can audit prediction structure without qrels while retaining diversity evaluation separately.
+
+A subtopic-shaped subset with no repeated query-item pairs can load, but field 2 is still ignored. Successful import does not establish the intended judgment unit, and RankProbe cannot detect that semantic mismatch from the four fields alone. A nonzero iteration is also valid for ordinary qrels; it does not automatically identify subtopics or cause rejection.
+
+This boundary was checked against the [historical NIST 2011 evaluator source](https://trec.nist.gov/data/web/11/ndeval.c) and separately corroborated by the [official 2014 source at a fixed commit](https://github.com/trec-web/trec-web-2014/blob/912a21f96b9d489938fc649c5545836bc16038b9/src/eval/ndeval.c#L902-L929). They are distinct versions. No diversity evaluator was run for this guide, and no metric parity is claimed.
+
 ## Comparing runs
 
 ```sh
