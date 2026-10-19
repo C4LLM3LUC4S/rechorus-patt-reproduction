@@ -59,6 +59,59 @@ jobs:
         working-directory: ${{ steps.package.outputs.root }}
         run: python scripts/check_wheel_install.py --wheel dist/*.whl
 
+  python315-core:
+    name: Python 3.15 core build/install on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.15'
+          architecture: x64
+      - name: Locate package
+        id: package
+        run: |
+          for candidate in . tools/rankprobe; do
+            if [ -f "$candidate/pyproject.toml" ] && [ -d "$candidate/src/rankprobe" ]; then
+              echo "root=$candidate" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "RankProbe package was not found"
+          exit 1
+      - name: Install RankProbe core from source
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python -m pip install .
+      - name: Install build tools
+        run: python -m pip install "build==1.6.1" "setuptools==84.0.0" "wheel==0.48.0"
+      - name: Build wheel and source distribution
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python -m build --no-isolation
+      - name: Check distribution integrity and example coverage
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python scripts/check_distribution.py
+      - name: Install and exercise built core wheel in isolation
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python scripts/check_wheel_install.py --wheel dist/*.whl --summary "$RUNNER_TEMP/rankprobe-python315-${{ runner.os }}.json"
+      - name: Save Python 3.15 core installation summary
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: core-python315-install-${{ runner.os }}
+          path: ${{ runner.temp }}/rankprobe-python315-${{ runner.os }}.json
+          if-no-files-found: ignore
+          retention-days: 14
+
   trec-reference:
     name: Pinned NIST trec_eval reference
     runs-on: ubuntu-24.04
