@@ -133,7 +133,7 @@ python scripts/check_distribution.py
 python scripts/check_wheel_install.py --wheel dist/rankprobe-0.1.0a4-py3-none-any.whl
 ```
 
-The CI configuration targets Python 3.10, 3.12, and 3.13 on Ubuntu and Windows. It tests the source and independently installs the built wheel into a fresh environment before exercising both command-line entry points and a retrieval comparison. See [installation checks](docs/installation-checks.md). A configuration file alone is not evidence that those remote jobs passed; inspect the workflow runs for the checked commit.
+The full-test CI matrix targets Python 3.10, 3.12, and 3.13 on Ubuntu and Windows, including fresh built-wheel installation and both command-line entry points. Separate Python 3.15 jobs on both systems check core source installation, distribution builds and the isolated wheel; they do not establish full-suite, NumPy-adapter or native-framework coverage on 3.15. Python 3.14 is not in this matrix. See [installation checks](docs/installation-checks.md) and inspect the exact commit's workflow runs for results.
 
 This is an early `0.1.0a4` implementation. The [verification record](docs/verification.md) distinguishes executed checks from pending evidence. There are no claimed external adopters, revenue, benchmark certification, or published research results. [The validation plan](docs/validation-plan.md) and [roadmap](docs/roadmap.md) describe what would establish practical value. Contributions should add an independently checkable example and document changed semantics. Please report problems with a small synthetic input instead of uploading private data.
 

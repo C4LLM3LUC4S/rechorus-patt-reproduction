@@ -130,6 +130,6 @@ python scripts/check_distribution.py
 python scripts/check_wheel_install.py --wheel dist/rankprobe-0.1.0a4-py3-none-any.whl
 ```
 
-CI 同时检查源码与构建出的 wheel：在干净环境中独立安装后，运行模块入口、实际命令行入口和检索比较，见 [安装验证说明](docs/installation-checks.md)。是否通过以对应提交的运行记录为准。
+完整测试矩阵覆盖 Windows/Ubuntu 的 Python 3.10、3.12、3.13，同时验证干净环境中的 wheel 安装和两个命令行入口。另有两平台 Python 3.15 的核心源码安装、构建与隔离 wheel 检查；这不代表 3.15 上的完整测试、NumPy 适配器或原生框架已经验证，3.14 也未纳入矩阵。见 [安装验证说明](docs/installation-checks.md)，实际结果以对应提交的运行记录为准。
 
 欢迎用最小合成输入报告问题。许可证见 [LICENSE](LICENSE)，软件引用信息见 [CITATION.cff](CITATION.cff)。第三方数据与输出继续受其来源条款约束。
