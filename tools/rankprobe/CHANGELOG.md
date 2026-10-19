@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Select a small declared RecBole user subset from the current nonsequential evaluation loader, with guidance for requested users absent from that split and explicit population boundaries.
 - Add a fingerprinted real TREC-COVID run-pair walkthrough and explain why expected end-to-end candidate changes, same-pool comparison status and metric eligibility answer different questions.
 - Preserve representable small exp2 gain ratios against large grades using split exponent scaling, without changing the linear rule or the existing large-branch calculation for grades at least one.
 - Explain CSV field-size failures, including unused text/metadata columns, with prediction- and qrels-specific recovery guidance that preserves supplied labels and the parser limit.

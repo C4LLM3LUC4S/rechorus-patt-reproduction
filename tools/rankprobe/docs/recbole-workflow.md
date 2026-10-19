@@ -8,7 +8,9 @@ These observations and the optional integration check target RecBole source [`7b
 
 ## Use your existing nonsequential evaluation environment
 
-Use this helper from the RankProbe source checkout or source distribution in the environment where your trained model, NumPy and `FullSortEvalDataLoader` already exist. The helper is not an installed CLI subcommand and does not require RankProbe to be installed in that model environment. Keep the separate core environment from the [first-report installation](try-it.md#1-install-locally) for the later audit:
+Use this helper from the RankProbe source checkout or source distribution in the environment where your trained model, NumPy and `FullSortEvalDataLoader` already exist. The helper is not an installed CLI subcommand and does not require RankProbe to be installed in that model environment. Keep the separate core environment from the [first-report installation](try-it.md#1-install-locally) for the later audit.
+
+For the pinned nonsequential loader, select users from its actual evaluation population. Its [`uid_list` and `user_df`](https://github.com/RUCAIBox/RecBole/blob/7b02be5ec80a88310f2d04a27a82adfcbb5dc211/recbole/data/dataloader/general_dataloader.py#L201-L226) contain users observed in that split. The example deliberately selects at most two of them for a small first export:
 
 ```python
 import sys
@@ -18,11 +20,17 @@ from recbole.utils.case_study import full_sort_scores
 sys.path.insert(0, str(Path("path/to/rankprobe/scripts").resolve()))
 from export_recbole import export_full_sort
 
-# Supply the exact internal user IDs, in the order scored by the helper.
-uids = [1, 2]
+evaluation_uids = test_data.uid_list.detach().cpu().tolist()
+uids = evaluation_uids[:2]
+if not uids:
+    raise ValueError("This evaluation loader has no users to score.")
 scores = full_sort_scores(uids, model, test_data, device=model.device)
 metadata = export_full_sort(scores, uids, test_data, Path("recbole-export"))
 ```
+
+Do not substitute `range(1, dataset.user_num)` for this population. A numerically valid ID can have no evaluation record and no history tensor. A [public RecBole report](https://github.com/RUCAIBox/RecBole/issues/2006) describes the resulting failure before export; the [pinned scoring helper](https://github.com/RUCAIBox/RecBole/blob/7b02be5ec80a88310f2d04a27a82adfcbb5dc211/recbole/utils/case_study.py#L44-L50) directly consumes the selected history entries. This is a reported upstream use case and source-based explanation, not a new local reproduction or a RankProbe adopter.
+
+If you need a particular user list, check every requested ID against `evaluation_uids` first and stop to report missing IDs; keep the requested order for scoring and export. Do not silently drop missing users. The example's small selected subset, all users in this loader, and all users in the dataset are different scopes and need not contain the same users. Record which one you selected; this step supplies neither predictions for absent users nor complete judgments.
 
 The output directory must be new, its parent must exist, and symbolic-link ancestors are refused. Scores must be the complete `[len(uids), dataset.item_num]` matrix from this helper; sampled scores and top-k tensors have different alignment. The exporter reads `dataset.id2token` and `uid2history_item` from the same evaluation object. Do not combine scores with the ID mapping or history from another split: a same-shaped incorrect mapping cannot be detected automatically. Inputs are not modified. Float16/32/64 values are converted to ordinary Python floats for CSV serialization without decimal rounding; float64 values retain their binary64 value on reload. CSV and metadata retain external tokens, so keep real exports private unless redistribution is authorized.
 
