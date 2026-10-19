@@ -30,7 +30,11 @@ def test_subtopic_shaped_repeated_pair_has_recovery_hint_and_no_report(tmp_path,
     assert "Field 2 is ignored" in captured.err
     assert "if it represents subtopics/intents" in captured.err
     assert "native evaluator" in captured.err
-    assert "docs/input-format.md#subtopic-and-diversity-judgments" in captured.err
+    assert (
+        "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/"
+        "blob/feature/rankprobe-alpha/tools/rankprobe/docs/input-format.md"
+        "#subtopic-and-diversity-judgments"
+    ) in captured.err
     assert "Traceback" not in captured.err
     assert not destination.exists()
     assert {

@@ -214,7 +214,9 @@ def read_qrels(path: str | Path, *, format: str = "auto") -> dict[str, dict[str,
                         "Other negative values may be source-specific annotations; keep the "
                         "original and check its grade definition and evaluator. "
                         "--unjudged does not reinterpret them. See "
-                        "docs/input-format.md#source-specific-negative-judgments"
+                        "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/"
+                        "blob/feature/rankprobe-alpha/tools/rankprobe/docs/input-format.md"
+                        "#source-specific-negative-judgments"
                     )
                 labels = result.setdefault(query, {})
                 if item in labels:
@@ -223,7 +225,9 @@ def read_qrels(path: str | Path, *, format: str = "auto") -> dict[str, dict[str,
                         "expected one ordinary query-item judgment. Field 2 is ignored; "
                         "if it represents subtopics/intents, use a scope-appropriate ordinary "
                         "export or the native evaluator. See "
-                        "docs/input-format.md#subtopic-and-diversity-judgments"
+                        "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/"
+                        "blob/feature/rankprobe-alpha/tools/rankprobe/docs/input-format.md"
+                        "#subtopic-and-diversity-judgments"
                     )
                 labels[item] = None if relevance == -1 else relevance
             except ValueError as exc:

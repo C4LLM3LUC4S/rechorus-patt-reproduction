@@ -56,7 +56,11 @@ def test_unsupported_negative_grade_is_not_repaired_by_protocol_flags(
     assert "TREC relevance must be non-negative or -1 (unjudged)" in result.stderr
     assert "Other negative values may be source-specific annotations" in result.stderr
     assert "--unjudged does not reinterpret them" in result.stderr
-    assert "docs/input-format.md#source-specific-negative-judgments" in result.stderr
+    assert (
+        "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/"
+        "blob/feature/rankprobe-alpha/tools/rankprobe/docs/input-format.md"
+        "#source-specific-negative-judgments"
+    ) in result.stderr
     assert "Traceback" not in result.stderr
     assert not destination.exists()
     assert hashes(run, qrels) == before

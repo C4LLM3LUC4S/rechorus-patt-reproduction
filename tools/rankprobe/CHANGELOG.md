@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Link TREC judgment recovery errors to the public alpha input guide so installed users can find it from a different working directory; parsing and rejection rules are unchanged.
 - Explain source-specific negative TREC judgments in errors and the input guide. Unsupported grades remain rejected even with missing-label or completeness options; no annotations are dropped or remapped.
 - Add a tested local CI orchestration recipe that handles findings failures before returning their original status, rejects stale output, and distinguishes invalid runs and partial metrics. The example lists local report files; host artifact retention remains an explicit integration step.
 - Explain the ordinary-versus-subtopic judgment boundary in TREC duplicate errors and the input guide. Four-column shape alone cannot identify intent semantics; valid nonzero ordinary iterations and existing accepted labels remain unchanged.
