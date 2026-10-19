@@ -231,6 +231,7 @@ jobs:
           expected = {
               "util.py": "2bd59ef892ea1a68be07adf4b6c18d9036c5a6b9706dcffdb672267653e00bc4",
               "retrieval/evaluation.py": "f346bd20f258e552895e438257e3cc91308b65e0b1ee6c09422e987084bc3bd0",
+              "datasets/data_loader.py": "bcb39af11b73861eda44f3083b399ba78c46ef11c25d56d8e195572af0be336f",
           }
           root = Path(importlib.util.find_spec("beir").origin).parent
           for name, digest in expected.items():

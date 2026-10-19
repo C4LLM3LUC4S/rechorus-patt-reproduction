@@ -80,10 +80,132 @@ def run_comparison(out: Path, original: Path, filtered: Path, qrels: Path) -> di
         raise GateError("comparison CLI: JSON missing or invalid") from exc
 
 
+def check_split_loader_scope(out: Path) -> dict:
+    from beir.datasets.data_loader import GenericDataLoader
+
+    folder = out / "loader-split-scope"
+    folder.mkdir(exist_ok=False)
+    corpus = {
+        "d_dev": {"title": "Toy development", "text": "Original development document."},
+        "d_test": {"title": "Toy test", "text": "Original test document."},
+    }
+    cases = (("shared", "q_shared", "q_shared"), ("disjoint", "q_dev", "q_test"))
+    inputs = []
+    for name, dev_query, test_query in cases:
+        dataset = folder / name
+        dataset.mkdir(exist_ok=False)
+        (dataset / "qrels").mkdir(exist_ok=False)
+        records = {
+            "corpus.jsonl": [
+                {"_id": item_id, **document} for item_id, document in corpus.items()
+            ],
+            "queries.jsonl": [
+                {"_id": query_id, "text": f"Original query {query_id}."}
+                for query_id in dict.fromkeys((dev_query, test_query))
+            ],
+        }
+        for filename, rows in records.items():
+            path = new_file(dataset / filename)
+            with path.open("x", encoding="utf-8", newline="\n") as handle:
+                for row in rows:
+                    handle.write(json.dumps(row, ensure_ascii=True, allow_nan=False) + "\n")
+            inputs.append(path)
+        for split, query_id, item_id in (
+            ("dev", dev_query, "d_dev"), ("test", test_query, "d_test")
+        ):
+            path = new_file(dataset / "qrels" / f"{split}.tsv")
+            with path.open("x", encoding="utf-8", newline="\n") as handle:
+                handle.write(f"query-id\tcorpus-id\tscore\n{query_id}\t{item_id}\t1\n")
+            inputs.append(path)
+    hashes_before = {path.relative_to(out).as_posix(): digest(path) for path in inputs}
+
+    shared = folder / "shared"
+    reused = GenericDataLoader(data_folder=str(shared))
+    dev_corpus, dev_queries, dev_qrels = reused.load(split="dev")
+    expected_dev = {"q_shared": {"d_dev": 1}}
+    expected_test = {"q_shared": {"d_test": 1}}
+    expected_merged = {"q_shared": {"d_dev": 1, "d_test": 1}}
+    require(dev_corpus == corpus and set(dev_queries) == {"q_shared"},
+            "split loader: initial shared dev data differs")
+    require(dev_qrels == expected_dev, "split loader: initial shared dev judgments differ")
+    dev_snapshot = deepcopy(dev_qrels)
+    _, test_queries, test_qrels = reused.load(split="test")
+    require(set(test_queries) == {"q_shared"} and test_qrels == expected_merged,
+            "split loader: expected shared-query judgment merge was not observed")
+    require(test_qrels is dev_qrels and dev_qrels is reused.qrels,
+            "split loader: expected returned judgment reference was not shared")
+    require(dev_qrels != dev_snapshot and dev_qrels == expected_merged,
+            "split loader: earlier dev judgment reference did not change")
+
+    fresh_scopes = {}
+    for name, dev_query, test_query in cases:
+        dataset = folder / name
+        fresh = {}
+        for split, query_id, item_id in (
+            ("dev", dev_query, "d_dev"), ("test", test_query, "d_test")
+        ):
+            loaded_corpus, queries, judgments = GenericDataLoader(
+                data_folder=str(dataset)
+            ).load(split=split)
+            require(loaded_corpus == corpus, "split loader: fresh corpus differs")
+            require(queries == {query_id: f"Original query {query_id}."},
+                    "split loader: fresh query scope differs")
+            require(judgments == {query_id: {item_id: 1}},
+                    "split loader: fresh judgment scope differs")
+            fresh[split] = judgments
+        require(fresh["dev"] is not fresh["test"],
+                "split loader: fresh split judgments unexpectedly share a reference")
+        require(fresh["dev"] == {dev_query: {"d_dev": 1}},
+                "split loader: fresh dev judgments changed after loading test")
+        fresh_scopes[name] = deepcopy(fresh)
+    require(fresh_scopes["shared"] == {"dev": expected_dev, "test": expected_test},
+            "split loader: fresh shared-query splits were not isolated")
+
+    disjoint = GenericDataLoader(data_folder=str(folder / "disjoint"))
+    _, disjoint_dev_queries, disjoint_dev_qrels = disjoint.load(split="dev")
+    require(set(disjoint_dev_queries) == {"q_dev"}
+            and disjoint_dev_qrels == {"q_dev": {"d_dev": 1}},
+            "split loader: initial disjoint dev data differs")
+    try:
+        disjoint.load(split="test")
+    except KeyError as exc:
+        require(exc.args == ("q_test",), "split loader: unexpected disjoint missing-query error")
+    else:
+        raise GateError("split loader: expected disjoint-query KeyError was not observed")
+    expected_disjoint_merge = {"q_dev": {"d_dev": 1}, "q_test": {"d_test": 1}}
+    require(disjoint.qrels == expected_disjoint_merge
+            and disjoint_dev_qrels is disjoint.qrels,
+            "split loader: disjoint failure did not preserve the expected merged reference")
+    require(all(digest(path) == hashes_before[path.relative_to(out).as_posix()]
+                for path in inputs), "split loader: generated dataset files changed")
+
+    return {
+        "synthetic_input_sha256": hashes_before,
+        "observations": {
+            "shared_dev_judgments_before_reuse": dev_snapshot,
+            "shared_test_judgments_from_reused_loader": deepcopy(test_qrels),
+            "shared_prior_dev_reference_after_reuse": deepcopy(dev_qrels),
+            "shared_returned_qrels_is_same_object": test_qrels is dev_qrels,
+            "fresh_loader_scopes": fresh_scopes,
+            "disjoint_reused_loader_second_split_error": "KeyError",
+            "disjoint_judgments_after_failed_second_load": deepcopy(disjoint.qrels),
+        },
+        "checks": {
+            "real_generic_data_loader_called": True,
+            "reused_loader_shared_query_judgments_merged": True,
+            "prior_split_judgment_reference_mutation_observed": True,
+            "fresh_loader_per_split_scopes_preserved": True,
+            "reused_loader_disjoint_query_keyerror_observed": True,
+            "generated_loader_dataset_files_unchanged": True,
+        },
+    }
+
+
 def check_workflow(out: Path) -> dict:
     out = new_output_directory(out)
     try:
         from beir import util
+        from beir.datasets import data_loader
         from beir.retrieval import evaluation
         from rankprobe.io import InputError, read_predictions, read_qrels
     except ImportError as exc:
@@ -98,7 +220,10 @@ def check_workflow(out: Path) -> dict:
     except metadata.PackageNotFoundError as exc:
         raise GateError("versions: an integration dependency has no distribution metadata") from exc
     source_hashes = {}
-    for name, module in (("beir.util", util), ("beir.retrieval.evaluation", evaluation)):
+    for name, module in (
+        ("beir.util", util), ("beir.retrieval.evaluation", evaluation),
+        ("beir.datasets.data_loader", data_loader),
+    ):
         source = Path(module.__file__)
         require(source.suffix == ".py" and source.is_file(), "sources: Python source missing")
         source_hashes[name] = digest(source)
@@ -227,15 +352,17 @@ def check_workflow(out: Path) -> dict:
             "comparison: synthetic input changed")
     require(original == original_snapshot and qrels == qrels_snapshot,
             "integration: original dictionaries changed")
+    loader_scope = check_split_loader_scope(out)
 
     result = {
         "status": "passed", "python": platform.python_version(), "platform": sys.platform,
         "versions": versions, "beir_source_sha256": source_hashes,
-        "synthetic_input_sha256": hashes_before,
+        "synthetic_input_sha256": {**hashes_before, **loader_scope["synthetic_input_sha256"]},
         "observations": {
             "original_mrr_at_1": 0.5, "filtered_mrr_at_1": 1.0,
             "structurally_matched_query_ids": ["q2"], "matched_mrr_at_1_delta": 0.0,
             "default_export_candidates": 1000, "explicit_export_candidates": 1002,
+            "generic_data_loader_split_scope": loader_scope["observations"],
         },
         "checks": {
             "real_beir_helpers_called": True, "real_beir_evaluation_called": True,
@@ -246,12 +373,16 @@ def check_workflow(out: Path) -> dict:
             "actual_rankprobe_cli_report": True, "submitted_mrr_change_observed": True,
             "matched_pool_delta_zero": True, "candidate_set_mismatch_reported": True,
             "source_hashes_match": True, "synthetic_inputs_unchanged": True,
+            **loader_scope["checks"],
         },
         "limitations": [
-            "Original synthetic export/evaluation case only; no model or dataset was loaded.",
+            "Original synthetic export/evaluation and generated local dataset-loader cases only; "
+            "no model or benchmark dataset was loaded.",
             "Observed self-match filtering is a declared policy, not evidence of leakage.",
             "Matched IDs and labels do not establish matching provenance or model quality.",
             "This check does not establish universal metric parity with BEIR or human time saved.",
+            "Loader reuse observations target the pinned source, not every BEIR version or "
+            "dataset workflow; fresh instances preserve only the declared split-file scope.",
         ],
     }
     with new_file(out / "summary.json").open("x", encoding="utf-8", newline="\n") as handle:

@@ -4,6 +4,25 @@ BEIR already provides a TREC run exporter. RankProbe can read its output directl
 
 The source inspected here is BEIR [`ef83d29307061c65d04b035b4f4e7c18bd8374af`](https://github.com/beir-cellar/beir/tree/ef83d29307061c65d04b035b4f4e7c18bd8374af), whose package metadata identifies version 2.2.0. These observations are tied to this source, not every BEIR version.
 
+## Keep split loading independent
+
+The pinned [`GenericDataLoader.load`](https://github.com/beir-cellar/beir/blob/ef83d29307061c65d04b035b4f4e7c18bd8374af/beir/datasets/data_loader.py#L69-L91) keeps mutable queries and qrels on the loader. Reusing one instance across splits can accumulate judgments, reuse an already filtered query map, or change a previously returned qrels reference. Disjoint query sets can instead raise `KeyError`. Upstream [draft PR #225](https://github.com/beir-cellar/beir/pull/225) reports the reuse problem; that report does not establish that your installed version contains a fix.
+
+Create a fresh loader for each declared split. When preparing the intended evaluation, choose one permitted split; retrieve against the returned corpus and queries, keeping qrels from that same call:
+
+```python
+from pathlib import Path
+from beir.datasets.data_loader import GenericDataLoader
+
+dataset_folder = Path("/absolute/path/to/permitted-dataset")
+split = "test"
+corpus, queries, qrels = GenericDataLoader(data_folder=str(dataset_folder)).load(split=split)
+```
+
+This rereads corpus and query files; account for I/O and memory costs. Do not rerun retrieval just to audit existing permitted exports. Export the paired `results` and `qrels` using the next section before advancing to another split, with a new destination each time. Repeat the load with a new instance rather than resetting private caches or modifying source judgments.
+
+Record the dataset/query/qrels revision or original file hashes, declared split and actual query IDs beside each run. Matching IDs or shapes do not prove common provenance. RankProbe cannot automatically detect consistently stale or mixed-split inputs, certify leakage absence or model quality, or justify treating missing judgments as zero.
+
 ## Preserve the retrieved result before evaluation
 
 [`EvaluateRetrieval.evaluate`](https://github.com/beir-cellar/beir/blob/ef83d29307061c65d04b035b4f4e7c18bd8374af/beir/retrieval/evaluation.py#L62-L78) defaults to `ignore_identical_ids=True` and removes documents with the same ID as their query **from the supplied results dictionary**. The [official dense example](https://github.com/beir-cellar/beir/blob/ef83d29307061c65d04b035b4f4e7c18bd8374af/examples/retrieval/evaluation/dense/evaluate_sbert.py) evaluates before exporting. A later export therefore represents the filtered candidate pool. This can be an intended benchmark choice; identical IDs alone do not establish leakage or a defect.
@@ -65,10 +84,12 @@ In an environment with the BEIR export/evaluation dependencies and an installed 
 python scripts/check_beir_workflow.py --out beir-workflow-example
 ```
 
-The output directory must be new and its parent must exist. The check uses the actual imported BEIR helpers and evaluator on original synthetic dictionaries. It saves both run files, transferred qrels, the native TSV counterexample, an HTML/JSON comparison and a summary. It also checks the default 1000-candidate truncation against an explicit 1002-candidate export. This exercises export and evaluation only: it does not download a model or dataset, or verify BEIR retrieval implementations.
+The output directory must be new and its parent must exist. The check uses the actual imported BEIR helpers and evaluator on original synthetic dictionaries, plus tiny generated corpus/query JSONL and split-qrels TSV files through the real `GenericDataLoader`. It saves both run files, transferred qrels, the native TSV counterexample, generated loader fixtures, an HTML/JSON comparison and a summary. It also checks the default 1000-candidate truncation against an explicit 1002-candidate export. These bounded export, evaluation and loader checks do not download a public benchmark or model, run retrieval, or verify BEIR retrieval implementations.
+
+The loader cases compare reuse and fresh instances for shared and disjoint dev/test query IDs. The summary records accumulated judgments, mutation of a previously returned qrels reference, the disjoint-query error and fresh per-split scopes, alongside hashes of the unchanged generated input files. These cases target the pinned loader; they do not establish split provenance for an arbitrary existing export.
 
 The synthetic same-ID example deliberately changes submitted MRR@1 from 0.5 to 1 by filtering an irrelevant first candidate. The unchanged structurally matched query has MRR@1 = 1 in both runs, so its delta is zero. An unjudged candidate remains unjudged throughout. This demonstrates an intended preprocessing effect, not a newly discovered upstream model bug.
 
-CI installs the checksum-verified BEIR source in a separate Ubuntu job, imports the full modules without fake dependencies, and verifies the installed export/evaluation source bytes. It uses CPU PyTorch 2.8.0, pytrec-eval-terrier 0.5.10, requests 2.32.5, tqdm 4.67.1 and NumPy 2.2.6 for this bounded path; unused model/dataset packages are not installed. None become RankProbe core dependencies. The BEIR source archive SHA256 is `93be775e8bb6c857883e77e3a3a01f4748e6498a341fc436416b547e35d5a75b`. Check the exact CI commit before claiming this integration passed. Original synthetic outputs are retained as a CI artifact for 14 days; no upstream dataset or source is redistributed in RankProbe.
+CI installs the checksum-verified BEIR source in a separate Ubuntu job, imports the full modules without fake dependencies, and verifies the installed export, evaluation and dataset-loader source bytes. It uses CPU PyTorch 2.8.0, pytrec-eval-terrier 0.5.10, requests 2.32.5, tqdm 4.67.1 and NumPy 2.2.6 for this bounded path; unused model/dataset packages are not installed. None become RankProbe core dependencies. The BEIR source archive SHA256 is `93be775e8bb6c857883e77e3a3a01f4748e6498a341fc436416b547e35d5a75b`. Check the exact CI commit before claiming this integration passed. Original synthetic outputs are retained as a CI artifact for 14 days; no upstream dataset or source is redistributed in RankProbe.
 
 No outside user's adoption or human time saved has been measured by this integration check.
