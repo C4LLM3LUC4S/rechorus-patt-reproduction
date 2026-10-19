@@ -38,6 +38,8 @@ request_002,item_b,-0.3,
 
 Do not supply a rank in the score column. Convert a distance to a score only if its direction is known, for example `score = -distance`. Infinite padding scores, NaN, booleans, negative relevance, malformed records, and missing required fields are rejected rather than coerced into valid predictions.
 
+A six-column TREC file can also contain scores derived from ranks. Such values cannot recover original score ties or gaps. The [score-provenance example](../examples/score-provenance/README.md) distinguishes a rank-only MS MARCO export, reciprocal-rank proxy scores and retained scores; format validity does not establish their provenance.
+
 One query may span nonadjacent rows. File order within a query matters only under the explicit `input` tie policy and in diagnostic comparisons. Duplicate `(query_id, item_id)` rows are an audit finding; they are not silently treated as independent documents.
 
 For recommendation, a user can have several target events. Give each event a distinct query ID. Do not merge all predictions for that user into one query. For run comparison, query and item IDs must refer to the same events and candidates in every run.

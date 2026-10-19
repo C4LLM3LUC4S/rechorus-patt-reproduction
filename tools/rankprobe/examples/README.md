@@ -14,6 +14,7 @@ Run commands from the repository root. The examples deliberately contain audit f
 | `unjudged.csv` | Scores without labels. Metrics requiring relevance must not be invented. |
 | `positive-only.csv` | Four rows, two queries, only observed positives labeled. MRR@1 = 1.0 with `partial` status and 1 of 2 queries eligible; the unknown-first query is excluded. NDCG@1 and Recall@1 are unavailable. |
 | `qrels.csv` | Independent judgments add an unretrieved positive for q1. Declaring these complete permits Recall; Recall@5 is `(1/2 + 1)/2 = 0.75`, rather than 1.0 from counting only positives in the retrieved pool. |
+| [score-provenance/](score-provenance/README.md) | A rank-only conversion can hide retained score ties. Separate unknown-label and planted-label controls distinguish score provenance, tie policy and metric changes. |
 
 ```sh
 python -m rankprobe audit examples/clean.csv --out reports/clean

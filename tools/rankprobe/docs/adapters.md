@@ -59,6 +59,8 @@ For the standard base ReChorus full-sort dev/test contract, use the [separate ma
 
 An explicit [TREC normalization helper](trec-normalization.md) handles the trailing run fields allowed by trec_eval. It creates a validated new file, refuses overwrites, and prints source/output hashes. The documented NIST case records the actual import obstacle and the query-coverage difference that becomes inspectable after conversion. This helper requires an installed RankProbe and the source checkout; it is not a new installed CLI subcommand.
 
+Normalizing fields cannot restore discarded scores. Pyserini's MS MARCO writer emits only query ID, document ID and rank; its converter uses `1 / rank` for the TREC score. Those proxy values preserve a submitted order without recovering original ties or score gaps. Prefer retained scores from the same evaluation when inspecting score diagnostics. See the [fixed-source explanation and original miniature case](../examples/score-provenance/README.md); the rank-only format is not a new supported loader.
+
 The [TREC-COVID Round 1 walkthrough](trec-covid-case.md) uses actual archived predictions and matching judgments, with source hashes and explicit format flags. It exposes sparse judgment coverage and real tied scores without requiring model training or a corpus download. Upstream files are fetched locally rather than bundled.
 
 ## BEIR export and evaluation

@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Add an original score-provenance case linked to Pyserini's rank-only export and reciprocal-rank conversion, with separate unknown-label and planted-label controls; include its TSV input in source distributions.
 - Select a small declared RecBole user subset from the current nonsequential evaluation loader, with guidance for requested users absent from that split and explicit population boundaries.
 - Add a fingerprinted real TREC-COVID run-pair walkthrough and explain why expected end-to-end candidate changes, same-pool comparison status and metric eligibility answer different questions.
 - Preserve representable small exp2 gain ratios against large grades using split exponent scaling, without changing the linear rule or the existing large-branch calculation for grades at least one.
