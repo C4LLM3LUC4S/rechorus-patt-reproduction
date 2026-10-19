@@ -56,6 +56,14 @@ Recall uses the number of distinct relevant items retrieved in the top k divided
 
 Counting only positives present in a truncated prediction file can make Recall artificially equal to one. RankProbe does not rename that quantity full Recall. Queries missing from the independent judgments remain unresolved. Queries with a known zero relevant denominator are excluded from Recall; inspect the eligible-query count.
 
+## Native Hit/HR and Recall
+
+RankProbe has no Hit/HR field. In pinned [RecBole Hit](https://github.com/RUCAIBox/RecBole/blob/7b02be5ec80a88310f2d04a27a82adfcbb5dc211/recbole/evaluator/metrics.py#L39-L64), each user contributes 1 when any held-out positive appears in the top k; [Recall](https://github.com/RUCAIBox/RecBole/blob/7b02be5ec80a88310f2d04a27a82adfcbb5dc211/recbole/evaluator/metrics.py#L139-L160) measures the fraction of that user's positives retrieved. Pinned [ReChorus HR](https://github.com/THUwangcy/ReChorus/blob/c164ec4303cc20ddcfbd1b57de366a481811d1e5/src/helpers/BaseRunner.py#L52-L75) instead checks the single observed target at column zero in each prediction context.
+
+Hit and Recall coincide with exactly one task positive per query only when populations, cutoffs, positive sets, candidate exclusions, ordering and duplicate rules align. With two task positives and one retrieved, Hit is 1 and Recall is 1/2. MRR also differs: a first positive at rank two gives RR = 1/2, but Hit@2 = 1. These are explanatory calculations from the definitions, not new native execution.
+
+In RankProbe, missing labels remain unknown by default. Do not rename a partial MRR, eligible-query fraction or unavailable Recall as HR, fill unknowns with zero, or declare `--qrels-complete` to obtain matching numbers. Preserve the native evaluator and benchmark protocol.
+
 ## Query coverage
 
 Macro averages use query IDs actually present in the submitted predictions.

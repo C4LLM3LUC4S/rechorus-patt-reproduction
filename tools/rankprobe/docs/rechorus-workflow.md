@@ -64,6 +64,8 @@ macOS / Linux:
 
 `positive_index=0` (CLI `--positive-index 0`) is an explicit assertion about this dataset protocol. It labels only that observed positive; other candidates remain unknown by default. The native framework evaluates under its own sampled-negative assumptions. Do not silently copy those assumptions into an audit of real relevance judgments.
 
+Before comparing native `HR@k` with this report, read [Hit/HR and Recall](metrics.md#native-hithr-and-recall); RankProbe does not report a Hit/HR field.
+
 The default local identity mode assigns each row a distinct `query_000001`, etc. Thus two interaction rows from the same source user remain separate prediction contexts. Item tokens are remapped consistently within this one export. Original IDs and their mapping are omitted from the CSV/metadata, and this is pseudonymization, not an anonymity guarantee. Cross-run comparison requires the same source row order and item mapping; shuffled independent exports are not aligned merely because they have the same generated names.
 
 For cross-run comparisons, add your existing stable event/context IDs to the capture, in the exact scored row order:
