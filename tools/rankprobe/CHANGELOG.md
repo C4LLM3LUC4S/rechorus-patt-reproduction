@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Add a pinned native gdeval source-policy check on original miniature inputs for nonpositive judgments, topic selection and default versus `-c` averaging. It does not establish RankProbe metric parity, historical 2011 equivalence or an automatic grade conversion.
 - Accept an optional UTF-8 BOM in the BEIR source preflight while retaining exact headers and repeated-pair checks; verify native loading and mapped TREC transfer preserve declared grades while the original BOM source bytes stay unchanged.
 - Check ordinary BEIR split TSV pair uniqueness before loading it into mappings, with a read-only preflight and pinned native controls for row-order-dependent judgment overwrites. Preserve source rows rather than selecting a judgment automatically.
 - Keep BEIR split loading independent with a fresh-loader recipe and fixed-source native controls for merged judgments, mutable returned references and disjoint-query failures. The core does not detect consistently stale inputs or alter source judgments.

@@ -169,6 +169,13 @@ jobs:
       - name: Check real TREC-COVID protocol against pinned reference
         working-directory: ${{ steps.package.outputs.root }}
         run: python scripts/check_trec_covid.py --trec-eval "${{ steps.reference.outputs.source }}/trec_eval" --inputs-dir "$RUNNER_TEMP/rankprobe-trec-covid-inputs" --fetch --summary "$RUNNER_TEMP/rankprobe-trec-covid-result.json"
+      - name: Check pinned gdeval judgment and averaging policy
+        working-directory: ${{ steps.package.outputs.root }}
+        run: |
+          gdeval_source="$RUNNER_TEMP/rankprobe-gdeval-policy-source.pl"
+          curl --fail --location --retry 2 "https://raw.githubusercontent.com/trec-web/trec-web-2014/912a21f96b9d489938fc649c5545836bc16038b9/src/eval/gdeval.pl" --output "$gdeval_source"
+          printf '%s  %s\n' "723ae1254f298ceac475fbc04941a87005f3daf0b7872ee809a745a05c985d31" "$gdeval_source" | sha256sum --check
+          python scripts/check_gdeval_policy.py --gdeval "$gdeval_source" --perl perl --out "$RUNNER_TEMP/rankprobe-gdeval-policy"
       - name: Save reference check summary
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -177,6 +184,7 @@ jobs:
           path: |
             ${{ runner.temp }}/rankprobe-reference-result.json
             ${{ runner.temp }}/rankprobe-trec-covid-result.json
+            ${{ runner.temp }}/rankprobe-gdeval-policy
           if-no-files-found: ignore
           retention-days: 14
 

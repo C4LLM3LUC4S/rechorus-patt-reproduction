@@ -85,3 +85,15 @@ This case checks only these bounded fractional grades with linear gain through a
 These are protocol differences, not proof that either model improved. The boundary probes deliberately assert different outputs where appropriate. They also check that RankProbe keeps unknown labels unknown. The pinned source's [actual missing-query control flow](https://github.com/usnistgov/trec_eval/blob/ba38899cbd4de0fb699b47f39b64ef1c107e4a5c/trec_eval.c#L349-L375) takes precedence over its older intersection wording in help text; results must be confirmed by execution.
 
 For your own disagreement, first save the original run/qrels hashes and both commands. Check ties, gain, binary threshold, cutoff, missing judgments and the evaluated query IDs. Reproduce the difference on a small input you are allowed to inspect. Do not set `--unjudged nonrelevant` or `--qrels-complete` merely to force two numbers to match. No human time-saving baseline or external adoption is established by this developer check.
+
+## Separate gdeval judgment and topic policy check
+
+This source-policy check targets the official [`gdeval.pl` source snapshot in the 2014 repository](https://github.com/trec-web/trec-web-2014/blob/912a21f96b9d489938fc649c5545836bc16038b9/src/eval/gdeval.pl), script version 1.3 (2013-04-29), SHA256 `723ae1254f298ceac475fbc04941a87005f3daf0b7872ee809a745a05c985d31`. With Perl already available and this exact source saved separately, use a new output directory:
+
+```sh
+python scripts/check_gdeval_policy.py --gdeval /path/to/gdeval.pl --out gdeval-policy-result
+```
+
+Five original synthetic invocations at cutoff 1 check positive-only topic selection, zero gain for unstored judgments, and default versus `-c` averaging. The positive-first baseline requires topic 1 NDCG = 1 in both modes, with means 1 and 1/2 respectively; `-c` includes a missing positive-judgment topic in the mean denominator without adding a per-topic row; nonpositive-only qrels topics stay outside it. Separate runs put supplied grades `-2`, `-1` or `0` first and require NDCG = 0. Original inputs and their hashes are retained.
+
+These are policy checks, not RankProbe parity comparisons or automatic grade mappings. ERR is only parsed for finite output, not validated or added to RankProbe. This check does not establish equivalence to the historical 2011 evaluator. Confirm actual execution in the exact-commit CI run; local parser/unit checks alone do not establish native agreement or justify changing unknown-label or completeness assumptions.
