@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
+import csv
 import hashlib
 import importlib.metadata as metadata
 import json
@@ -201,6 +202,100 @@ def check_split_loader_scope(out: Path) -> dict:
     }
 
 
+def check_duplicate_loader_judgments(out: Path) -> dict:
+    from beir.datasets.data_loader import GenericDataLoader
+    from rankprobe.io import InputError, read_qrels
+
+    folder = out / "loader-source-duplicates"
+    folder.mkdir(exist_ok=False)
+    shared = out / "loader-split-scope" / "shared"
+    reused_inputs = (shared / "corpus.jsonl", shared / "queries.jsonl")
+    hashes_before = {path.relative_to(out).as_posix(): digest(path) for path in reused_inputs}
+    inputs = list(reused_inputs)
+    observations = {}
+    loaded_by_order = []
+    for name, grades in (("one-then-zero", (1, 0)), ("zero-then-one", (0, 1))):
+        source = new_file(folder / f"{name}.tsv")
+        with source.open("x", encoding="utf-8", newline="\n") as handle:
+            handle.write("query-id\tcorpus-id\tscore\n")
+            for grade in grades:
+                handle.write(f"q_shared\td_dev\t{grade}\n")
+        inputs.append(source)
+        hashes_before[source.relative_to(out).as_posix()] = digest(source)
+        corpus, queries, judgments = GenericDataLoader(
+            corpus_file=str(reused_inputs[0]), query_file=str(reused_inputs[1]),
+            qrels_file=str(source),
+        ).load_custom()
+        expected = {"q_shared": {"d_dev": grades[-1]}}
+        require("d_dev" in corpus and set(queries) == {"q_shared"},
+                "source duplicates: loaded corpus or query scope differs")
+        require(judgments == expected,
+                "source duplicates: fresh loader did not retain the final source grade")
+        loaded_by_order.append(judgments)
+
+        with source.open(encoding="utf-8", newline="") as handle:
+            rows = list(csv.reader(handle, delimiter="\t"))
+        require(rows[0] == ["query-id", "corpus-id", "score"]
+                and rows[1:] == [["q_shared", "d_dev", str(grade)] for grade in grades],
+                "source duplicates: original conflicting rows differ")
+        mapped = new_file(folder / f"{name}-mapped.qrels")
+        with mapped.open("x", encoding="utf-8", newline="\n") as handle:
+            for query_id, items in judgments.items():
+                for item_id, grade in items.items():
+                    handle.write(f"{query_id} 0 {item_id} {grade}\n")
+        inputs.append(mapped)
+        hashes_before[mapped.relative_to(out).as_posix()] = digest(mapped)
+        require(len(mapped.read_text(encoding="utf-8").splitlines()) == 1,
+                "source duplicates: mapped export did not contain one surviving row")
+        parsed_mapped = read_qrels(mapped)
+        require(parsed_mapped == expected,
+                "source duplicates: mapped export changed the surviving judgment")
+
+        # Only these verified invented tokens are copied; this is not a general TSV converter.
+        preserved = new_file(folder / f"{name}-source-rows.qrels")
+        with preserved.open("x", encoding="utf-8", newline="\n") as handle:
+            for query_id, item_id, grade in rows[1:]:
+                handle.write(f"{query_id} 0 {item_id} {grade}\n")
+        inputs.append(preserved)
+        hashes_before[preserved.relative_to(out).as_posix()] = digest(preserved)
+        require(preserved.read_text(encoding="utf-8").splitlines()
+                == [f"q_shared 0 d_dev {grade}" for grade in grades],
+                "source duplicates: row-preserving copy changed row order or grades")
+        try:
+            read_qrels(preserved)
+        except InputError as exc:
+            require(f"{preserved}:2:" in str(exc) and "duplicate qrels entry" in str(exc),
+                    "source duplicates: row-preserving copy had an unexpected rejection")
+        else:
+            raise GateError("source duplicates: repeated original judgment rows were accepted")
+        observations[name] = {
+            "source_grades_in_order": list(grades), "source_judgment_rows": len(rows) - 1,
+            "fresh_loader_judgments": deepcopy(judgments),
+            "mapped_trec_judgment_rows": 1, "mapped_trec_parsed_judgments": parsed_mapped,
+            "row_preserving_trec_rows": 2, "row_preserving_copy_error": "duplicate qrels entry",
+        }
+    require(loaded_by_order[0] is not loaded_by_order[1],
+            "source duplicates: fresh loader judgment dictionaries share a reference")
+    require(loaded_by_order == [{"q_shared": {"d_dev": 0}}, {"q_shared": {"d_dev": 1}}],
+            "source duplicates: reversed source order did not change the surviving judgment")
+    require(all(digest(path) == hashes_before[path.relative_to(out).as_posix()]
+                for path in inputs), "source duplicates: original or generated inputs changed")
+    observations["original_and_generated_inputs_unchanged"] = True
+    return {
+        "synthetic_input_sha256": {
+            path.relative_to(out).as_posix(): hashes_before[path.relative_to(out).as_posix()]
+            for path in inputs if path not in reused_inputs
+        },
+        "observations": observations,
+        "checks": {
+            "fresh_loader_source_conflict_last_row_wins": True,
+            "duplicate_row_order_changes_loaded_judgment": True,
+            "mapped_export_keeps_only_surviving_judgment": True,
+            "row_preserving_duplicate_copy_rejected": True,
+        },
+    }
+
+
 def check_workflow(out: Path) -> dict:
     out = new_output_directory(out)
     try:
@@ -353,16 +448,21 @@ def check_workflow(out: Path) -> dict:
     require(original == original_snapshot and qrels == qrels_snapshot,
             "integration: original dictionaries changed")
     loader_scope = check_split_loader_scope(out)
+    duplicate_scope = check_duplicate_loader_judgments(out)
 
     result = {
         "status": "passed", "python": platform.python_version(), "platform": sys.platform,
         "versions": versions, "beir_source_sha256": source_hashes,
-        "synthetic_input_sha256": {**hashes_before, **loader_scope["synthetic_input_sha256"]},
+        "synthetic_input_sha256": {
+            **hashes_before, **loader_scope["synthetic_input_sha256"],
+            **duplicate_scope["synthetic_input_sha256"],
+        },
         "observations": {
             "original_mrr_at_1": 0.5, "filtered_mrr_at_1": 1.0,
             "structurally_matched_query_ids": ["q2"], "matched_mrr_at_1_delta": 0.0,
             "default_export_candidates": 1000, "explicit_export_candidates": 1002,
             "generic_data_loader_split_scope": loader_scope["observations"],
+            "generic_data_loader_source_duplicates": duplicate_scope["observations"],
         },
         "checks": {
             "real_beir_helpers_called": True, "real_beir_evaluation_called": True,
@@ -374,6 +474,7 @@ def check_workflow(out: Path) -> dict:
             "matched_pool_delta_zero": True, "candidate_set_mismatch_reported": True,
             "source_hashes_match": True, "synthetic_inputs_unchanged": True,
             **loader_scope["checks"],
+            **duplicate_scope["checks"],
         },
         "limitations": [
             "Original synthetic export/evaluation and generated local dataset-loader cases only; "
@@ -383,6 +484,8 @@ def check_workflow(out: Path) -> dict:
             "This check does not establish universal metric parity with BEIR or human time saved.",
             "Loader reuse observations target the pinned source, not every BEIR version or "
             "dataset workflow; fresh instances preserve only the declared split-file scope.",
+            "A mapped judgment export contains only the loader's surviving values; it does not "
+            "establish source-row uniqueness or recover overwritten annotations.",
         ],
     }
     with new_file(out / "summary.json").open("x", encoding="utf-8", newline="\n") as handle:

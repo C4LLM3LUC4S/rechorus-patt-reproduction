@@ -4,6 +4,31 @@ BEIR already provides a TREC run exporter. RankProbe can read its output directl
 
 The source inspected here is BEIR [`ef83d29307061c65d04b035b4f4e7c18bd8374af`](https://github.com/beir-cellar/beir/tree/ef83d29307061c65d04b035b4f4e7c18bd8374af), whose package metadata identifies version 2.2.0. These observations are tied to this source, not every BEIR version.
 
+## Check ordinary qrels rows before loading
+
+The pinned [`GenericDataLoader._load_qrels`](https://github.com/beir-cellar/beir/blob/ef83d29307061c65d04b035b4f4e7c18bd8374af/beir/datasets/data_loader.py#L120-L134) assigns each row into a query/document dictionary. A later repeated pair overwrites the earlier grade, so exporting that dictionary cannot recover conflicting source rows. Before loading an ordinary split, run this read-only check on its original TSV with the core interpreter; BEIR is unnecessary here:
+
+```python
+import csv
+from pathlib import Path
+
+source = Path("/absolute/path/to/permitted-dataset/qrels/test.tsv")
+seen = set()
+with source.open("r", encoding="utf-8", newline="") as handle:
+    rows = csv.reader(handle, delimiter="\t", strict=True)
+    if next(rows, None) != ["query-id", "corpus-id", "score"]:
+        raise ValueError(f"{source}: expected query-id, corpus-id, score TSV header")
+    for row in rows:
+        if len(row) != 3 or not row[0].strip() or not row[1].strip():
+            raise ValueError(f"{source}:{rows.line_num}: expected three fields and nonblank IDs")
+        pair = (row[0], row[1])
+        if pair in seen:
+            raise ValueError(f"{source}:{rows.line_num}: repeated query-document pair {pair!r}")
+        seen.add(pair)
+```
+
+This rejects equal-grade repeats too; it does not deduplicate or select a grade. It writes nothing and does not cast or reinterpret supplied `1`, `0` or `-1`. It retains one key per unique pair in memory. It checks only the header, row width, nonblank IDs and pair uniqueness, not grade semantics, split provenance or completeness. Preserve the source and resolve repeats against its intended judgment unit. Intentional multiple judgments need an explicitly documented source policy and an evaluator or export that preserves their judgment unit; do not silently merge them or invent zeros to pass this check. Continue with fresh split loading below only after reviewing the source.
+
 ## Keep split loading independent
 
 The pinned [`GenericDataLoader.load`](https://github.com/beir-cellar/beir/blob/ef83d29307061c65d04b035b4f4e7c18bd8374af/beir/datasets/data_loader.py#L69-L91) keeps mutable queries and qrels on the loader. Reusing one instance across splits can accumulate judgments, reuse an already filtered query map, or change a previously returned qrels reference. Disjoint query sets can instead raise `KeyError`. Upstream [draft PR #225](https://github.com/beir-cellar/beir/pull/225) reports the reuse problem; that report does not establish that your installed version contains a fix.
@@ -87,6 +112,8 @@ python scripts/check_beir_workflow.py --out beir-workflow-example
 The output directory must be new and its parent must exist. The check uses the actual imported BEIR helpers and evaluator on original synthetic dictionaries, plus tiny generated corpus/query JSONL and split-qrels TSV files through the real `GenericDataLoader`. It saves both run files, transferred qrels, the native TSV counterexample, generated loader fixtures, an HTML/JSON comparison and a summary. It also checks the default 1000-candidate truncation against an explicit 1002-candidate export. These bounded export, evaluation and loader checks do not download a public benchmark or model, run retrieval, or verify BEIR retrieval implementations.
 
 The loader cases compare reuse and fresh instances for shared and disjoint dev/test query IDs. The summary records accumulated judgments, mutation of a previously returned qrels reference, the disjoint-query error and fresh per-split scopes, alongside hashes of the unchanged generated input files. These cases target the pinned loader; they do not establish split provenance for an arbitrary existing export.
+
+Separate source-row cases use fresh loaders with two conflicting TSV rows in each order. They retain the original TSV, the one-row mapping export and a row-preserving TREC copy made only from the verified invented tokens. The existing core accepts the surviving mapped judgment but rejects the repeated original pair. This isolates loss before export, not a new aggregation rule or a general TSV converter; the read-only preflight above checks the original rows instead.
 
 The synthetic same-ID example deliberately changes submitted MRR@1 from 0.5 to 1 by filtering an irrelevant first candidate. The unchanged structurally matched query has MRR@1 = 1 in both runs, so its delta is zero. An unjudged candidate remains unjudged throughout. This demonstrates an intended preprocessing effect, not a newly discovered upstream model bug.
 
