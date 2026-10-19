@@ -312,14 +312,19 @@ def _diagnostics(value: Any, limit: int = TABLE_LIMIT) -> str:
         sections.append(_content(scalars, limit))
     for key, item in value.items():
         if isinstance(item, (Mapping, list, tuple)):
-            rendered = (
-                _metrics(item)
-                if key
-                in {"metric_bounds", "metrics", "original", "reversed", "deduplicated", "raw_rows"}
-                or str(key).endswith("_metrics")
-                or str(key).startswith("delta_")
-                else _diagnostics(item, limit)
-            )
+            if key == "files" and value.get("scheme") == "rankprobe-core-python-v1" and isinstance(item, Mapping):
+                rendered = _table([
+                    {"filename": name, "sha256": digest} for name, digest in item.items()
+                ], limit)
+            else:
+                rendered = (
+                    _metrics(item)
+                    if key
+                    in {"metric_bounds", "metrics", "original", "reversed", "deduplicated", "raw_rows"}
+                    or str(key).endswith("_metrics")
+                    or str(key).startswith("delta_")
+                    else _diagnostics(item, limit)
+                )
             sections.append(
                 f"<details><summary>{_esc(_label(str(key)))}</summary>{rendered}</details>"
             )

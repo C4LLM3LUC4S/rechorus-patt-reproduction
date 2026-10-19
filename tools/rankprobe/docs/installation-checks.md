@@ -15,6 +15,7 @@ Pass an exact wheel path for the version being checked. The checker does not sel
 | Distribution integrity | Wheel CRCs, metadata, packaged source bytes, core dependency declarations, and source-distribution file coverage |
 | Fresh installation | A new virtual environment without inherited system packages, created outside the checkout in a path containing spaces |
 | Import source | The loaded module belongs to that environment; module, installed-distribution, and wheel versions agree |
+| Report implementation | Both reports' core-source identities agree with independently hashed Python files inside the exact wheel |
 | Dependencies | Only RankProbe is added beyond the environment's bundled bootstrap tools |
 | Entry points | Both isolated `python -I -m rankprobe` and the actual installed `rankprobe` launcher |
 | Reports | Built-in demo and copied synthetic TREC inputs produce valid reports; known values, excluded queries, source hashes and matched deltas agree with the fixture |

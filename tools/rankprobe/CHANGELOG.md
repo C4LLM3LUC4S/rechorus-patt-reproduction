@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Record a path-free core-source identity in CLI reports so unreleased builds sharing a version can be distinguished. Per-file and aggregate hashes describe available source bytes, not loaded bytecode, the complete environment or evaluation quality; unreadable source is recorded as unavailable.
 - Add separate Windows/Ubuntu Python 3.15 core source-build and isolated-wheel installation checks, with versioned aggregate artifacts. The existing full-test matrix is unchanged; adapters, native frameworks and Python 3.14 are outside this added coverage.
 - Add an original score-provenance case linked to Pyserini's rank-only export and reciprocal-rank conversion, with separate unknown-label and planted-label controls; include its TSV input in source distributions.
 - Select a small declared RecBole user subset from the current nonsequential evaluation loader, with guidance for requested users absent from that split and explicit population boundaries.

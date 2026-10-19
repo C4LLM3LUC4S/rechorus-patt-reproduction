@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import hashlib
+from importlib.resources import files
+import json
 from pathlib import Path
 import sys
 from typing import Sequence, TextIO
@@ -14,6 +16,33 @@ from .audit import audit_run, compare_runs
 from .io import _float, _input_format, read_predictions, read_qrels
 from .model import Protocol
 from .report import write_report
+
+
+_CORE_FILES = (
+    "__init__.py", "__main__.py", "audit.py", "cli.py", "demo.py",
+    "io.py", "metrics.py", "model.py", "report.py",
+)
+
+
+def _core_source_identity() -> dict:
+    scheme = "rankprobe-core-python-v1"
+    try:
+        package = files("rankprobe")
+        hashes = {
+            name: hashlib.sha256(package.joinpath(name).read_bytes()).hexdigest()
+            for name in _CORE_FILES
+        }
+    except OSError:
+        return {
+            "scheme": scheme,
+            "status": "unavailable",
+            "reason": "The core Python source files could not all be read.",
+        }
+    manifest = json.dumps(hashes, sort_keys=True, separators=(",", ":")).encode("ascii")
+    return {
+        "scheme": scheme, "status": "available",
+        "sha256": hashlib.sha256(manifest).hexdigest(), "files": hashes,
+    }
 
 
 def _console(message: str, *, file: TextIO | None = None) -> None:
@@ -285,6 +314,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         report["provenance"] = {
             "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "rankprobe_version": __version__,
+            "core_source_identity": _core_source_identity(),
             "command": arguments.command,
             "sources": sources,
             "source_path_policy": "Only filenames are stored; absolute local paths and raw command lines are omitted.",

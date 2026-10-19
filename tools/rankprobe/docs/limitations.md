@@ -28,4 +28,4 @@ HTML reports are self-contained. They include identifiers and selected examples 
 
 ## Early software
 
-This alpha package and its JSON schema can evolve; the report schema version is currently `0.1`. Pin a package version when integrating reports into automated checks. Local tests and configured CI do not establish external adoption or cross-platform results that have not actually run. There is no claim of revenue, security certification, online business improvement, or accepted research output.
+This alpha package and its JSON schema can evolve; the report schema version is currently `0.1`. Unreleased builds can share a package version: retain an exact source commit or build artifact when integrating reports into automated checks. The CLI's [core-source identity](usage.md) distinguishes available source bytes, but does not identify the complete runtime environment. Local tests and configured CI do not establish external adoption or cross-platform results that have not actually run. There is no claim of revenue, security certification, online business improvement, or accepted research output.

@@ -114,7 +114,7 @@ print(json.dumps({
 """
 
 
-def read_report(directory: Path, version: str, report_type: str) -> dict:
+def read_report(directory: Path, version: str, report_type: str, source_identity: dict) -> dict:
     require((directory / "report.html").is_file(), f"{report_type}: HTML report missing")
     require((directory / "report.html").stat().st_size > 0, f"{report_type}: HTML report empty")
     try:
@@ -125,6 +125,10 @@ def read_report(directory: Path, version: str, report_type: str) -> dict:
     require(
         report["provenance"]["rankprobe_version"] == version,
         f"{report_type}: report version differs from wheel",
+    )
+    require(
+        report["provenance"].get("core_source_identity") == source_identity,
+        f"{report_type}: report core-source identity differs from wheel bytes",
     )
     return report
 
@@ -137,6 +141,17 @@ def check(wheel: Path, checkout: Path) -> dict:
         names = [name for name in package.namelist() if name.endswith(".dist-info/METADATA")]
         require(len(names) == 1, "wheel: expected exactly one distribution metadata file")
         metadata = BytesParser().parsebytes(package.read(names[0]))
+        core_hashes = {
+            name.removeprefix("rankprobe/"): hashlib.sha256(package.read(name)).hexdigest()
+            for name in package.namelist()
+            if name.startswith("rankprobe/") and name.count("/") == 1 and name.endswith(".py")
+        }
+        require(bool(core_hashes), "wheel: core Python source files are missing")
+        manifest = json.dumps(core_hashes, sort_keys=True, separators=(",", ":")).encode("ascii")
+        source_identity = {
+            "scheme": "rankprobe-core-python-v1", "status": "available",
+            "sha256": hashlib.sha256(manifest).hexdigest(), "files": core_hashes,
+        }
     require(metadata["Name"] == "rankprobe", "wheel: metadata name must be rankprobe")
     version = metadata["Version"]
     require(bool(version), "wheel: metadata version is missing")
@@ -214,7 +229,7 @@ def check(wheel: Path, checkout: Path) -> dict:
             "console demo", [str(console), "demo", "--out", str(demo_directory)],
             cwd=workspace, environment=environment,
         )
-        demo = read_report(demo_directory, version, "audit")
+        demo = read_report(demo_directory, version, "audit", source_identity)
         require(bool(demo.get("demo_note")), "demo: synthetic example notice missing")
         require(demo["summary"]["unknown_candidates"] == 1, "demo: unknown labels changed")
         require(demo["summary"]["duplicate_rows"] == 1, "demo: duplicate example missing")
@@ -235,7 +250,7 @@ def check(wheel: Path, checkout: Path) -> dict:
              "--out", str(compare_directory)],
             cwd=workspace, environment=environment,
         )
-        report = read_report(compare_directory, version, "compare")
+        report = read_report(compare_directory, version, "compare", source_identity)
         require(report["protocol"]["unjudged"] == "unknown", "compare: unknown policy changed")
         ideal_discount = 1 / math.log2(3)
         for name, expected_mrr, expected_ndcg, eligible in (
@@ -286,6 +301,7 @@ def check(wheel: Path, checkout: Path) -> dict:
             "isolated_trec_comparison": True, "unknown_labels_preserved": True,
             "matched_pool_delta_zero": True, "report_source_hashes_match": True,
             "source_inputs_unchanged": True,
+            "report_core_identity_matches_wheel": True,
         },
     }
 

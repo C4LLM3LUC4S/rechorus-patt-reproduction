@@ -34,6 +34,10 @@ Expand metric-coverage details for eligible query IDs, exclusion reasons and the
 
 Cutoffs are sorted and deduplicated. The declared protocol is saved in JSON. Absolute input paths and raw command lines are not stored as provenance; source filenames and hashes are recorded. Identifiers in the findings still require a privacy review before sharing.
 
+CLI reports also record `provenance.core_source_identity`. Unreleased builds can share a package version while containing different fixes, so the version alone does not identify their implementation. An available identity contains the SHA256 of each of the nine core Python source files and an aggregate SHA256. For scheme `rankprobe-core-python-v1`, hash the ASCII JSON of that filename-to-hash mapping with sorted keys and compact separators (`,`, `:`). Filenames are package-relative; no local paths or source text are stored. The HTML includes this under **Reproducibility metadata**.
+
+This identifies the source bytes available when the report is created, including line endings; it does not prove which bytecode was loaded or describe Python, the operating system, installed dependencies, export helpers or model code. A changed hash is a reason to inspect the source difference, not proof that metric semantics changed. Keep the source archive or exact commit and environment details as well. If a core source file cannot be read, the identity is explicitly `unavailable` and the audit can still finish. Earlier reports without this field have an unknown implementation identity; do not infer it from their date or package version.
+
 The output report pair must not coincide with any prediction or judgment input, including an existing file alias. Such a destination is rejected even with `--overwrite`; choose a separate report directory.
 
 In an audit summary, `judged_candidates` counts unique candidates with an actual known judgment after label resolution. `resolved_candidates` also includes unknowns assigned zero under `--unjudged nonrelevant`. Their difference reflects an assumption, not newly collected judgments.
@@ -87,4 +91,4 @@ comparison = compare_runs(runs, protocol)
 
 Independent qrels use a nested dictionary of `{query_id: {item_id: relevance}}`, where `None` represents an explicit unknown, or the loader `rankprobe.io.read_qrels`. Both loaders accept a keyword-only `format=` argument with `auto`, `csv`, `jsonl`, or `trec`. For example, `read_predictions("retrieval.txt", format="trec")` reads six-column run text without relying on the extension. Pass the qrels dictionary as `qrels=` to `audit_run` or `compare_runs`. Inputs are validated; contradictory known labels raise `ValueError`. The API returns ordinary dictionaries and performs no file writes until you call `write_report`.
 
-The library-generated report contains the audit data; the CLI additionally records input-file provenance. Pin the alpha version or commit if integrating this API. The report schema and public functions may change during early development.
+The library-generated report contains the audit data; the CLI additionally records input-file provenance and core-source identity. Retain the exact source commit or build artifact if integrating an unreleased version of this API. The report schema and public functions may change during early development.
