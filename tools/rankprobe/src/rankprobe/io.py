@@ -46,10 +46,18 @@ def _input_format(path: Path, format: str, *, qrels: bool = False) -> str:
 
 
 def _records(path: Path, required: set[str], format: str) -> Iterator[tuple[int, dict]]:
+    csv_line_number = 0
+
+    def csv_lines(handle):
+        nonlocal csv_line_number
+        for line in handle:
+            csv_line_number += 1
+            yield line
+
     try:
         with path.open("r", encoding="utf-8-sig", newline="") as handle:
             if format == "csv":
-                reader = csv.DictReader(handle, strict=True)
+                reader = csv.DictReader(csv_lines(handle), strict=True)
                 fields = reader.fieldnames
                 if not fields:
                     raise InputError(f"{path}: missing CSV header")
@@ -95,6 +103,11 @@ def _records(path: Path, required: set[str], format: str) -> Iterator[tuple[int,
                     yield line_number, record
     except csv.Error as exc:
         message = f"{path}: cannot read input: {exc}"
+        if csv_line_number:
+            message += (
+                f" (CSV parser stopped at physical line {csv_line_number}; "
+                "the record may start earlier)"
+            )
         if str(exc).startswith("field larger than field limit"):
             fields = (
                 "query_id,item_id,score and relevance when supplied"
@@ -104,6 +117,11 @@ def _records(path: Path, required: set[str], format: str) -> Iterator[tuple[int,
                 ". The CSV field limit also applies to unused text columns. "
                 f"Export a new minimal CSV with {fields}, or equivalent JSONL. "
                 "Preserve identifiers, numeric values and all supplied labels; "
+                "keep the original unchanged."
+            )
+        else:
+            message += (
+                ". Check CSV quoting and delimiters in a new source export; "
                 "keep the original unchanged."
             )
         raise InputError(message) from exc

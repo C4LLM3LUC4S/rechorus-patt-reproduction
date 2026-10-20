@@ -56,6 +56,7 @@ def test_oversized_unused_column_has_kind_specific_recovery_hint(tmp_path, small
         loader(kind)(source)
     message = str(failure.value)
     assert message.startswith(f"{source}: cannot read input: field larger than field limit (64)")
+    assert "CSV parser stopped at physical line 2" in message
     assert "also applies to unused text columns" in message
     assert "new minimal CSV" in message and "equivalent JSONL" in message
     assert "all supplied labels" in message and "original unchanged" in message
@@ -85,6 +86,7 @@ def test_cli_field_limit_is_exit_two_before_output(tmp_path, capsys, small_csv_l
     assert captured.out == ""
     assert captured.err.startswith(f"rankprobe: {source}: cannot read input: ")
     assert "field larger than field limit (64)" in captured.err
+    assert "CSV parser stopped at physical line 2" in captured.err
     assert "new minimal CSV" in captured.err
     assert "Traceback" not in captured.err
     assert not out.exists()
@@ -145,6 +147,7 @@ def test_other_csv_errors_keep_generic_diagnostic(tmp_path, small_csv_limit, kin
         loader(kind)(source)
     message = str(failure.value)
     assert message.startswith(f"{source}: cannot read input: unexpected end of data")
+    assert "CSV parser stopped at physical line 2" in message
     assert "field limit" not in message
     assert "minimal CSV" not in message and "JSONL" not in message
     assert digest(source) == before

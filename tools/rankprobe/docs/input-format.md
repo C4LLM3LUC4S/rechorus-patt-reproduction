@@ -4,6 +4,12 @@ RankProbe reads UTF-8 CSV, JSONL, and TREC-style run/qrels text, including a UTF
 
 With the default `auto` format, `.csv` and `.jsonl` select those loaders; `.run` / `.trec` select TREC predictions and `.qrels` selects TREC judgments. Other extensions require an explicit `--input-format` or `--qrels-format` (`csv`, `jsonl`, or `trec`). File contents are not guessed. In `compare`, `auto` detects each run separately; an explicit input format applies to every run.
 
+### CSV parser locations
+
+CSV parsing failures report the source, the parser's reason and the physical line at which parsing stopped. This counts lines consumed from the text input, not completed records: a quoted field may span several lines. See [Python's reader line-number definition](https://docs.python.org/3/library/csv.html#csv.csvreader.line_num). The stop position does not identify where the malformed record began; an unterminated quote can consume the rest of the file before the parser reports the error.
+
+Check quoting and comma delimiters in a **new source export**, preserving identifiers, scores, every supplied judgment and row order. Keep the original unchanged; do not remove rows or fill missing labels merely to get past the error. RankProbe retains strict parsing and does not attempt an automatic quote or delimiter repair. CSV field-size failures include the same stop position and the more specific recovery route below.
+
 ### CSV field-size errors
 
 CSV parsing reads every column before RankProbe selects the evaluation fields. A long document body or metadata value can therefore exceed [Python's current CSV field-size limit](https://docs.python.org/3.12/library/csv.html#csv.field_size_limit), even in an unused column. RankProbe preserves that limit; it does not silently shorten values or change the process-wide parser setting.
