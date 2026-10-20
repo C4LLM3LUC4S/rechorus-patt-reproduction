@@ -1,8 +1,8 @@
 """Compare a fixed public TREC-COVID run with an explicit native reference.
 
-Existing inputs are read-only by default. --fetch explicitly downloads the two
-fingerprinted files into a fresh directory. Missing-as-nonrelevant is a separate
-reference assumption; qrels completeness is never declared.
+Existing inputs are read-only by default. --fetch explicitly downloads the fixed
+files into a fresh directory: two for CLE-LMD, three with --pair. Nonrelevance is
+a separate reference assumption; qrels completeness is never declared.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ import subprocess
 import tempfile
 from urllib.request import Request, urlopen
 
+from rankprobe.audit import compare_runs
 from rankprobe.io import InputError, read_predictions, read_qrels
 from rankprobe.metrics import evaluate_metrics, resolve_rows
 from rankprobe.model import Protocol, Row
@@ -40,6 +41,16 @@ FILES = (
         "1f2ee6258744581b466c744a1e5956b9a10b0e10f84f44cb6336bef053644b51",
     ),
 )
+DFR_FILE = (
+    "ir_covid19_cle_dfr",
+    "https://ir.nist.gov/trec-covid/archive/round1/ir_covid19_cle_dfr",
+    118231,
+    "c919e38726909203d69cff6092f34421d03b6c52ebcfc800f0119a287b827692",
+)
+CASES = {
+    "cle_lmd": (FILES[0], 2601, 781, 1820, (27, 19, 17)),
+    "cle_dfr": (DFR_FILE, 2564, 825, 1739, (30, 30, 29)),
+}
 Qrels = dict[str, dict[str, float | None]]
 
 
@@ -60,13 +71,13 @@ def _fingerprint(content: bytes, expected_bytes: int, expected_hash: str) -> str
     return digest
 
 
-def fetch_inputs(inputs_dir: Path) -> None:
-    """Fetch only the two fixed URLs; retain a failed fresh attempt for inspection."""
+def fetch_inputs(inputs_dir: Path, *, files=None) -> None:
+    """Fetch only fixed URLs; retain a failed fresh attempt for inspection."""
     inputs_dir = Path(inputs_dir)
     if inputs_dir.exists() or inputs_dir.is_symlink():
         raise FileExistsError("fetch: inputs directory must be fresh")
     inputs_dir.mkdir(parents=True, exist_ok=False)
-    for name, url, expected_bytes, expected_hash in FILES:
+    for name, url, expected_bytes, expected_hash in FILES if files is None else files:
         request = Request(url, headers={
             "User-Agent": "RankProbe-local-validation/0.1", "Accept": "text/plain",
         })
@@ -78,12 +89,12 @@ def fetch_inputs(inputs_dir: Path) -> None:
             handle.write(content)
 
 
-def _verified_inputs(inputs_dir: Path) -> tuple[dict[str, Path], dict[str, str]]:
+def _verified_inputs(inputs_dir: Path, *, files=None) -> tuple[dict[str, Path], dict[str, str]]:
     inputs_dir = Path(inputs_dir)
     require(inputs_dir.is_dir() and not inputs_dir.is_symlink(),
             "inputs: directory must already exist and must not be a symlink")
     paths, hashes = {}, {}
-    for name, _url, expected_bytes, expected_hash in FILES:
+    for name, _url, expected_bytes, expected_hash in FILES if files is None else files:
         path = inputs_dir / name
         require(path.is_file() and not path.is_symlink(),
                 "inputs: each fixed source must be an existing regular file")
@@ -94,11 +105,13 @@ def _verified_inputs(inputs_dir: Path) -> tuple[dict[str, Path], dict[str, str]]
     return paths, hashes
 
 
-def _validate_case(rows: list[Row], qrels: Qrels) -> tuple[list[str], int, int]:
+def _validate_case(
+    rows: list[Row], qrels: Qrels, *, counts=(2601, 781, 1820)
+) -> tuple[list[str], int, int]:
     queries = sorted({row.query_id for row in rows})
     require(set(queries) == set(qrels) == {str(i) for i in range(1, 31)},
             "inputs: run and qrels must have the same fixed 30 queries")
-    require(len(rows) == 2601 and sum(map(len, qrels.values())) == 8691,
+    require(len(rows) == counts[0] and sum(map(len, qrels.values())) == 8691,
             "inputs: fixed run or qrels record count differs")
     require(len({(row.query_id, row.item_id) for row in rows}) == len(rows),
             "inputs: repeated retrieved document")
@@ -113,7 +126,7 @@ def _validate_case(rows: list[Row], qrels: Qrels) -> tuple[list[str], int, int]:
             "inputs: each fixed query must have a positive known judgment")
     supplied = sum(row.item_id in qrels[row.query_id] for row in rows)
     unknown = len(rows) - supplied
-    require((supplied, unknown) == (781, 1820),
+    require((supplied, unknown) == counts[1:],
             "inputs: supplied and missing candidate judgment counts differ")
     return queries, supplied, unknown
 
@@ -123,15 +136,18 @@ def _protocol(*, unjudged: str, tie_policy: str = "item_id") -> Protocol:
                     relevance_threshold=0, unjudged=unjudged, qrels_complete=False)
 
 
-def _unknown_control(rows: list[Row], qrels: Qrels) -> dict:
+def _unknown_control(
+    rows: list[Row], qrels: Qrels, *, unknown=1820, coverage=(27, 19, 17)
+) -> dict:
     protocol = _protocol(unjudged="unknown")
     resolved = resolve_rows(rows, protocol, qrels)
-    require(sum(row.relevance is None for row in resolved) == 1820,
+    require(sum(row.relevance is None for row in resolved) == unknown,
             "default unknown: missing judgments were not preserved")
     metrics = evaluate_metrics(rows, protocol, qrels)
-    for cutoff, count in zip(CUTOFFS, (27, 19, 17)):
+    for cutoff, count in zip(CUTOFFS, coverage):
         mrr = metrics[f"mrr@{cutoff}"]
-        require(mrr["status"] == "partial" and mrr["evaluated_queries"] == count
+        status = "ok" if count == len(qrels) else "partial"
+        require(mrr["status"] == status and mrr["evaluated_queries"] == count
                 and mrr["eligibility_rule"] == "known_first_relevant_prefix"
                 and mrr["value"] is not None,
                 "default unknown: MRR coverage differs")
@@ -217,8 +233,13 @@ def _macro_summary(metrics: dict) -> dict:
             for key, value in sorted(metrics.items())}
 
 
-def check_reference(executable: str | Path, inputs_dir: str | Path, *, fetch=False) -> dict:
+def check_reference(
+    executable: str | Path, inputs_dir: str | Path, *, fetch=False, case="cle_lmd"
+) -> dict:
     """Execute the native comparison and return aggregate, path-free evidence."""
+    require(case in CASES, "inputs: unknown fixed run")
+    run_file, row_count, supplied_count, unknown_count, coverage = CASES[case]
+    files = (run_file, FILES[1])
     executable = Path(executable).resolve(strict=True)
     require(executable.is_file(), "reference: executable must be a file")
     binary_hash = hashlib.sha256(executable.read_bytes()).hexdigest()
@@ -233,19 +254,21 @@ def check_reference(executable: str | Path, inputs_dir: str | Path, *, fetch=Fal
         require(match is not None, "reference: trec_eval version was not identified")
         inputs_dir = Path(inputs_dir)
         if fetch:
-            fetch_inputs(inputs_dir)
-        paths, hashes_before = _verified_inputs(inputs_dir)
-        run_path, qrels_path = (paths[FILES[index][0]] for index in (0, 1))
+            fetch_inputs(inputs_dir, files=files)
+        paths, hashes_before = _verified_inputs(inputs_dir, files=files)
+        run_path, qrels_path = (paths[item[0]] for item in files)
         try:
             rows = read_predictions(run_path, format="trec")
             qrels = read_qrels(qrels_path, format="trec")
         except InputError as exc:
             raise GateError("inputs: invalid TREC content") from exc
-        queries, supplied, unknown = _validate_case(rows, qrels)
+        queries, supplied, unknown = _validate_case(
+            rows, qrels, counts=(row_count, supplied_count, unknown_count),
+        )
         original_rows = list(rows)
         original_qrels = {query: dict(labels) for query, labels in qrels.items()}
         try:
-            default = _unknown_control(rows, qrels)
+            default = _unknown_control(rows, qrels, unknown=unknown_count, coverage=coverage)
             ascending = _assumed_metrics(rows, qrels)
             # Stable score sorting under input ties makes this new view match
             # NIST's descending ASCII docno ties. The original rows stay intact.
@@ -274,6 +297,11 @@ def check_reference(executable: str | Path, inputs_dir: str | Path, *, fetch=Fal
             require(native.returncode == 0, "reference NDCG: subprocess failed")
             comparisons, largest_error = _compare_output(native.stdout, expected_ndcg,
                                                          "reference NDCG")
+            native_macro = {
+                f"ndcg@{metric.removeprefix('ndcg_cut_')}": float(value)
+                for metric, query, value in (line.split() for line in native.stdout.splitlines()
+                                              if line.strip()) if query == "all"
+            }
             for cutoff in CUTOFFS:
                 expected_mrr = {("recip_rank", query): metrics[f"mrr@{cutoff}"]["value"]
                                 for query, metrics in evaluated.items()}
@@ -282,11 +310,16 @@ def check_reference(executable: str | Path, inputs_dir: str | Path, *, fetch=Fal
                               root)
                 require(native.returncode == 0, "reference MRR: subprocess failed")
                 count, error = _compare_output(native.stdout, expected_mrr, "reference MRR")
+                native_macro[f"mrr@{cutoff}"] = next(
+                    float(value) for _metric, query, value in
+                    (line.split() for line in native.stdout.splitlines() if line.strip())
+                    if query == "all"
+                )
                 comparisons += count
                 largest_error = max(largest_error, error)
             require(comparisons == 186, "reference: expected 186 comparisons")
         finally:
-            _paths_after, hashes_after = _verified_inputs(inputs_dir)
+            _paths_after, hashes_after = _verified_inputs(inputs_dir, files=files)
             require(hashes_after == hashes_before, "inputs: original files changed during check")
             require(rows == original_rows and qrels == original_qrels,
                     "inputs: original in-memory rows or qrels changed during check")
@@ -294,13 +327,14 @@ def check_reference(executable: str | Path, inputs_dir: str | Path, *, fetch=Fal
                     "reference: executable changed during check")
     return {
         "status": "passed",
+        "run": case,
         "reference_version": match.group(1),
         "reference_binary_sha256": binary_hash,
         "reference_provenance": (
             "Version/hash identify only the supplied binary; source pin requires build evidence"
         ),
         "sources": [{"filename": name, "url": url, "bytes": size, "sha256": digest}
-                    for name, url, size, digest in FILES],
+                    for name, url, size, digest in files],
         "input_counts": {"prediction_rows": len(rows), "prediction_queries": len(queries),
                          "qrels_rows": sum(map(len, qrels.values())),
                          "qrels_queries": len(qrels), "supplied_candidate_judgments": supplied,
@@ -312,6 +346,7 @@ def check_reference(executable: str | Path, inputs_dir: str | Path, *, fetch=Fal
                             "unjudged": "nonrelevant", "qrels_complete": False,
                             "assumed_nonrelevant_candidates": unknown,
                             "query_universe": "same 30 submitted and qrels queries",
+                            "query_ids": queries,
                             "ndcg_reference": "known_qrels_pool",
                             "tie_adapter": "new descending ASCII docno view; input tie policy",
                             "native_inputs": "original run and qrels; no rewritten files"},
@@ -321,6 +356,7 @@ def check_reference(executable: str | Path, inputs_dir: str | Path, *, fetch=Fal
                                     "macro_metrics": _macro_summary(default)},
         "nonrelevant_ascending_docno": _macro_summary(ascending),
         "nonrelevant_native_docno": _macro_summary(aligned),
+        "native_macro_as_printed": native_macro,
         "tie_observation": {
             "ndcg_changed_queries": {str(k): count for k, count in changed_ndcg_queries.items()},
             "ndcg_at_10_macro_delta": aligned["ndcg@10"]["value"] - ascending["ndcg@10"]["value"],
@@ -339,6 +375,93 @@ def check_reference(executable: str | Path, inputs_dir: str | Path, *, fetch=Fal
     }
 
 
+def _end_to_end_summary(left: dict, right: dict) -> dict:
+    """Compare whole runs only after both fixed native checks passed."""
+    expected = {
+        "cutoffs": list(CUTOFFS), "gain": "linear", "relevance_threshold": 0,
+        "unjudged": "nonrelevant", "qrels_complete": False,
+        "ndcg_reference": "known_qrels_pool",
+        "tie_adapter": "new descending ASCII docno view; input tie policy",
+        "query_ids": sorted(str(i) for i in range(1, 31)),
+    }
+    require(left.get("status") == right.get("status") == "passed",
+            "pair: both native checks must pass")
+    for field in ("reference_version", "reference_binary_sha256"):
+        require(left.get(field) is not None and left[field] == right.get(field),
+                "pair: native reference identity differs")
+    for result in (left, right):
+        require(all(result.get("shared_protocol", {}).get(k) == v for k, v in expected.items()),
+                "pair: declared protocol or topics differ")
+    differences = {}
+    for prefix, reference in (("mrr", "submitted_candidates"), ("ndcg", "known_qrels_pool")):
+        for cutoff in CUTOFFS:
+            key = f"{prefix}@{cutoff}"
+            values, printed = [], []
+            for result in (left, right):
+                metric = result.get("nonrelevant_native_docno", {}).get(key, {})
+                value = metric.get("value")
+                native = result.get("native_macro_as_printed", {}).get(key)
+                require(isinstance(value, (int, float)) and math.isfinite(value)
+                        and isinstance(native, (int, float)) and math.isfinite(native)
+                        and metric.get("evaluated_queries") == metric.get("total_queries") == 30
+                        and metric.get("status") == "partial"
+                        and metric.get("reference") == reference,
+                        "pair: macro availability, query population or reference differs")
+                require(math.isclose(value, native, rel_tol=0, abs_tol=ABSOLUTE_TOLERANCE),
+                        "pair: native macro evidence differs")
+                values.append(value)
+                printed.append(native)
+            differences[key] = {
+                "left": values[0], "right": values[1], "delta": values[1] - values[0],
+                "native_left_as_printed": printed[0], "native_right_as_printed": printed[1],
+                "native_delta_as_printed": printed[1] - printed[0],
+                "native_delta_absolute_tolerance": 2 * ABSOLUTE_TOLERANCE,
+            }
+    return {
+        "scope": "Whole submitted retrieval runs under the separate native protocol; "
+                 "not a matched-pool delta or a significance test",
+        "left": "cle_lmd", "right": "cle_dfr", "query_count": 30,
+        "macro_difference_dfr_minus_lmd": differences,
+        "recall": "unavailable; qrels completeness was not declared",
+    }
+
+
+def check_pair(executable: str | Path, inputs_dir: str | Path, *, fetch=False) -> dict:
+    """Recheck the public diagnostic with a separate whole-retrieval experiment."""
+    files = (*FILES, DFR_FILE)
+    inputs_dir = Path(inputs_dir)
+    if fetch:
+        fetch_inputs(inputs_dir, files=files)
+    paths, before = _verified_inputs(inputs_dir, files=files)
+    try:
+        results = {case: check_reference(executable, inputs_dir, case=case) for case in CASES}
+        comparison = _end_to_end_summary(results["cle_lmd"], results["cle_dfr"])
+        rows = {case: read_predictions(paths[spec[0][0]], format="trec")
+                for case, spec in CASES.items()}
+        qrels = read_qrels(paths[FILES[1][0]], format="trec")
+        diagnostic = compare_runs(rows, _protocol(unjudged="unknown"), qrels)["pairs"][0]
+        matched = diagnostic["matched_pool_comparison"]
+        require(diagnostic["status"] == "not_comparable" and matched["query_count"] == 0
+                and diagnostic["candidate_sets"]["differing_queries"] == 30
+                and all(v["delta"] is None for v in matched["delta_right_minus_left"].values()),
+                "pair: default same-pool diagnostic changed")
+    finally:
+        _, after = _verified_inputs(inputs_dir, files=files)
+        require(before == after, "pair: original files changed during check")
+    return {
+        "status": "passed", "comparisons": 372, "runs": results,
+        "end_to_end_comparison": comparison,
+        "same_pool_control": {"status": diagnostic["status"], "matched_queries": 0,
+                              "differing_candidate_sets": 30, "metric_deltas": "unavailable"},
+        "input_file_integrity": {"sha256_before": before, "sha256_after": after,
+                                 "unchanged": True},
+        "limits": ["No candidate intersection, missing-score synthesis or source rewriting.",
+                   "Native assumptions do not supply judgments or replace the default reports.",
+                   "No historical executable reproduction, significance, model certification, "
+                   "external adoption or human time saved is established."],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--trec-eval", required=True, type=Path,
@@ -346,13 +469,16 @@ def main() -> int:
     parser.add_argument("--inputs-dir", required=True, type=Path,
                         help="existing fixed inputs, or a fresh directory with --fetch")
     parser.add_argument("--fetch", action="store_true",
-                        help="explicitly fetch the two fixed public files into a fresh directory")
+                        help="explicitly fetch the fixed public files into a fresh directory")
+    parser.add_argument("--pair", action="store_true",
+                        help="check both original runs and a separate end-to-end comparison")
     parser.add_argument("--summary", type=Path, help="write a new path-free JSON summary")
     arguments = parser.parse_args()
     if arguments.summary and (arguments.summary.exists() or arguments.summary.is_symlink()):
         parser.error("--summary must name a new file; existing paths are never replaced")
     try:
-        result = check_reference(arguments.trec_eval, arguments.inputs_dir, fetch=arguments.fetch)
+        check = check_pair if arguments.pair else check_reference
+        result = check(arguments.trec_eval, arguments.inputs_dir, fetch=arguments.fetch)
     except (ValueError, OSError, KeyError, TypeError, RuntimeError) as exc:
         reason = str(exc) if isinstance(exc, GateError) else type(exc).__name__
         result = {"status": "failed", "reason": reason}

@@ -166,9 +166,9 @@ jobs:
       - name: Check shared metrics and protocol boundaries
         working-directory: ${{ steps.package.outputs.root }}
         run: python scripts/check_trec_eval.py --trec-eval "${{ steps.reference.outputs.source }}/trec_eval" --summary "$RUNNER_TEMP/rankprobe-reference-result.json"
-      - name: Check real TREC-COVID protocol against pinned reference
+      - name: Check real TREC-COVID run pair against pinned reference
         working-directory: ${{ steps.package.outputs.root }}
-        run: python scripts/check_trec_covid.py --trec-eval "${{ steps.reference.outputs.source }}/trec_eval" --inputs-dir "$RUNNER_TEMP/rankprobe-trec-covid-inputs" --fetch --summary "$RUNNER_TEMP/rankprobe-trec-covid-result.json"
+        run: python scripts/check_trec_covid.py --pair --trec-eval "${{ steps.reference.outputs.source }}/trec_eval" --inputs-dir "$RUNNER_TEMP/rankprobe-trec-covid-inputs" --fetch --summary "$RUNNER_TEMP/rankprobe-trec-covid-pair-result.json"
       - name: Check pinned gdeval judgment and averaging policy
         working-directory: ${{ steps.package.outputs.root }}
         run: |
@@ -183,7 +183,7 @@ jobs:
           name: trec-eval-reference
           path: |
             ${{ runner.temp }}/rankprobe-reference-result.json
-            ${{ runner.temp }}/rankprobe-trec-covid-result.json
+            ${{ runner.temp }}/rankprobe-trec-covid-pair-result.json
             ${{ runner.temp }}/rankprobe-gdeval-policy
           if-no-files-found: ignore
           retention-days: 14
