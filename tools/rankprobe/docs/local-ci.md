@@ -4,6 +4,8 @@ A findings failure is useful only if you can inspect its report. RankProbe write
 
 This small project template audits one export or compares two exports. It uses the core interpreter already selected in the [first-report setup](try-it.md#1-install-locally), preserves the CLI status, and lists local artifacts after a completed run. Save the following as `local_rankprobe_check.py`. It uses only the standard library and your installed RankProbe; it is not a new RankProbe command.
 
+This status handling applies to RankProbe. First require any upstream exporter or converter to succeed under its own contract and check its expected query-item coverage. A failed conversion can leave a parseable prefix; passing that file to RankProbe cannot establish export completion. The [executed converter handoff control](../examples/score-provenance/README.md#check-conversion-completion-before-auditing-its-output) demonstrates failure, rejection of incomplete coverage and a corrected fresh-output retry.
+
 ```python
 import argparse
 from pathlib import Path
