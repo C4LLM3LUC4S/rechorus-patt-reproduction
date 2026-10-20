@@ -116,14 +116,24 @@ def _tie_analysis(rows: list[Row], protocol: Protocol, qrels: Qrels | None) -> d
     for key in best_metrics:
         high, low = best_metrics[key], worst_metrics[key]
         available = high["value"] is not None and low["value"] is not None
+        excluded_query_ids = sorted(set(grouped) - set(high["eligible_query_ids"]))
+        status = (
+            "not_checked"
+            if not available
+            else "partial"
+            if excluded_query_ids or high["status"] != "ok" or low["status"] != "ok"
+            else "checked"
+        )
         bounds[key] = {
             "min": low["value"],
             "max": high["value"],
             "width": high["value"] - low["value"] if available else None,
-            "status": "checked" if available else "not_checked",
+            "status": status,
             "evaluated_queries": high["evaluated_queries"],
             "total_queries": len(grouped),
+            "excluded_queries": len(excluded_query_ids),
             "eligible_query_ids": high["eligible_query_ids"],
+            "excluded_query_ids": excluded_query_ids,
             "reference": high["reference"],
         }
     reverse_rows = [row for group in grouped.values() for row in reversed(group)]

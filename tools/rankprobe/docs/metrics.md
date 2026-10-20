@@ -79,6 +79,8 @@ The audit keeps strict score ordering fixed and examines the effect of permuting
 
 These bounds describe order sensitivity of this input and protocol. They are not confidence intervals, significance tests, or possible training outcomes. They are per-metric envelopes: the order giving the best value for one metric does not imply a common optimal order for every reported metric. Unknown judgments and coverage rules still apply.
 
+A bound is `checked` only when its metric covers all submitted prediction queries under an unrestricted reference. It is `partial` when fully judged, metric-eligible queries are only a subset or the metric reference itself is limited; `not_checked` means no bound can be reported. The bound's eligible and excluded query IDs show its actual scope. Excluded queries are not scored as zero, and an exact bound on a subset is not an envelope for the whole run.
+
 Exact ties mean equal parsed numeric values. Near-ties caused by score rounding, quantization, or serialization need separate analysis; this version does not infer a tolerance from the data.
 
 ## What a comparison establishes

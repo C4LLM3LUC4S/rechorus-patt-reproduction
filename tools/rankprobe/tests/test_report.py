@@ -209,6 +209,39 @@ class ReportTests(unittest.TestCase):
         self.assertIn("partial", result)
         self.assertIn("A missing value is not zero", result)
 
+    def test_tie_bounds_identify_partial_coverage_without_filling_unknown_labels(self):
+        rows = [
+            Row("known", "a", 1, 1), Row("known", "b", 1, 0),
+            Row("unknown", "x", 1), Row("unknown", "y", 1),
+        ]
+        report = audit_run(rows, Protocol(cutoffs=(1,)))
+        self.assertEqual(report["metrics"]["mrr@1"]["status"], "partial")
+        bound = report["tie_analysis"]["metric_bounds"]["mrr@1"]
+        self.assertEqual(bound["min"], 0)
+        self.assertEqual(bound["max"], 1)
+        self.assertEqual(bound["status"], "partial")
+        self.assertEqual(bound["evaluated_queries"], 1)
+        self.assertEqual(bound["total_queries"], 2)
+        self.assertEqual(bound["excluded_query_ids"], ["unknown"])
+        self.assertEqual(report["summary"]["unknown_candidates"], 2)
+
+        table = next(
+            table for table in ReportTables(render_html(report)).tables
+            if "Min" in table[0] and "Max" in table[0]
+        )
+        row = next(row for row in table[1:] if row[0] == "mrr@1")
+        self.assertEqual(row[table[0].index("Status")], "partial")
+        self.assertEqual(row[table[0].index("Excluded queries")], "1")
+
+        limited = audit_run(rows[:2], Protocol(cutoffs=(1,)))
+        self.assertEqual(limited["tie_analysis"]["metric_bounds"]["mrr@1"]["status"], "checked")
+        self.assertEqual(limited["tie_analysis"]["metric_bounds"]["ndcg@1"]["status"], "partial")
+        complete = audit_run(
+            rows[:2], Protocol(cutoffs=(1,), qrels_complete=True),
+            {"known": {"a": 1, "b": 0}},
+        )
+        self.assertEqual(complete["tie_analysis"]["metric_bounds"]["ndcg@1"]["status"], "checked")
+
     def test_perfect_partial_metric_context_is_visible_only_in_main_metrics(self):
         rows = [
             Row("positive_first", "positive", 0.9, 1),
