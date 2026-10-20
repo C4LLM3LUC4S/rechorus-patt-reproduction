@@ -6,7 +6,7 @@ Use this page to decide what a finding lets you change and what to check afterwa
 | --- | --- | --- |
 | [TREC format selection](#trec-format-selection) | Actual archived CLE-LMD run and Round 1 qrels | Explicit-format recovery executed; original inputs preserved |
 | [Native protocol alignment](#native-protocol-alignment) | The same actual CLE-LMD input | Separate declared protocol checked against pinned native `trec_eval`; default unknown-label control preserved |
-| [Different retrieval candidate sets](#different-retrieval-candidate-sets) | Actual archived CLE-LMD and CLE-DFR runs | Diagnostic independently checked; shared-pool reranking or two-system native follow-up **not executed** |
+| [Different retrieval candidate sets](#different-retrieval-candidate-sets) | Actual archived CLE-LMD and CLE-DFR runs | Diagnostic and separate two-system native follow-up checked; shared-pool reranking **not executed** |
 | [Rank-derived scores](#rank-derived-scores) | Original synthetic scores, rank-only export and planted labels | Controlled consequences checked; recovery of a real model's score export **not demonstrated** |
 
 These are developer-run software checks. None establishes human adoption, measured human time saved or model quality. A warning disappearing is not sufficient acceptance: retain source hashes, report version, assumptions and the scope of any metric change.
@@ -37,7 +37,7 @@ Under the explicit nonrelevant assumption, changing only tie ordering leaves MRR
 
 **Finding.** The [two-run public case](trec-covid-case.md#compare-two-real-retrieval-runs) shares all 30 query IDs, but all 30 submitted candidate sets differ. The report returns `not_comparable`, zero matched queries and unavailable matched deltas. Under the default unknown policy, the displayed MRR@10 averages cover 17 queries for CLE-LMD and 29 for CLE-DFR. Subtracting those means would mix populations.
 
-**Action still to choose.** First decide the experimental question. Different candidate sets are expected for many complete retrieval systems; this finding alone is not an error in either submission.
+**Choose the experimental question.** First decide the experimental question. Different candidate sets are expected for many complete retrieval systems; this finding alone is not an error in either submission.
 
 | Intended question | Next action | Evidence needed before accepting a result |
 | --- | --- | --- |
@@ -46,7 +46,7 @@ Under the explicit nonrelevant assumption, changing only tie ordering leaves MRR
 
 Do not intersect the submitted results, invent absent scores or fill unknown labels with zeros to force a same-pool comparison. Such changes would answer a different question. RankProbe's matched-pool delta is not the end-to-end comparison requested in the second row.
 
-**Recheck status.** Original-record parsing, Decimal score sorting and reciprocal-rank calculations independently confirmed the diagnostic, input integrity and different eligible populations. No shared-candidate reranking export or two-system native evaluation has been executed for this case. The native check above covers CLE-LMD only. The follow-up experiment remains open; there is no verified improvement claim to report.
+**Recheck status.** Original-record parsing, Decimal score sorting and reciprocal-rank calculations independently confirmed the diagnostic and different eligible populations. The separate [two-system native follow-up](trec-covid-case.md#complete-retrieval-follow-up-on-both-original-runs) has now passed 372 comparisons on the original files. It preserves the default unknown-label controls and unavailable matched-pool delta. No shared-candidate reranking export has been executed; the numerical difference under the separate protocol does not establish statistical significance, model improvement or human benefit.
 
 ## Rank-derived scores
 

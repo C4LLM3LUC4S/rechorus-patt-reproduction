@@ -11,6 +11,8 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Add an optional fixed public CLE-LMD/CLE-DFR native pair check: verify both original runs under a separately declared complete-retrieval protocol, preserve default unknown-label and same-pool controls, and record native rounding separately.
+
 - Connect public case findings to executed actions, recheck evidence and still-pending follow-ups. Separate real public inputs from the synthetic score-provenance control.
 - Include the actual physical parser-stop line in CSV parsing errors, including multiline records and headers, with quoting/delimiter recovery guidance; do not label a stale `DictReader` position as the malformed record's start.
 - Report JSONL parser-depth failures with a file, line and flat-export recovery route, returning CLI exit 2 instead of an uncaught traceback/exit 1; preserve source bytes, supported nested metadata and unknown labels.

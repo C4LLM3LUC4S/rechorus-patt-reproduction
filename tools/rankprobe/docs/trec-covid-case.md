@@ -174,7 +174,7 @@ All 30 queries occur in both runs, but all 30 have different submitted candidate
 
 Two end-to-end retrievers can legitimately return different documents. Follow the `candidate_set_mismatch` action by inspecting whether candidate selection changed as intended. For a question about reranking alone, obtain a shared candidate export. For a question about the complete retrieval systems, preserve both original runs and establish the intended evaluation protocol separately. Do not intersect their results or invent absent scores or zero labels to force structural matching.
 
-The diagnostic has been independently checked; neither a shared-candidate reranking export nor a two-system native follow-up has been executed here. The [action and recheck table](case-actions.md#different-retrieval-candidate-sets) states what each follow-up would need to establish. The separate native check below covers CLE-LMD only.
+The diagnostic has been independently checked. The [complete-retrieval follow-up](#complete-retrieval-follow-up-on-both-original-runs) now checks both original runs under a separately declared native protocol. No shared-candidate reranking export has been executed. See the [action and recheck table](case-actions.md#different-retrieval-candidate-sets) for the distinction.
 
 The two displayed MRR@10 values also average different eligible query populations. Their subtraction would not be a matched improvement estimate. NDCG remains unavailable because each query has an unknown submitted candidate; Recall additionally lacks a justified completeness declaration. These results demonstrate report interpretation on public real inputs, not independent human use, time saved or a quality judgment about either submission. See [what a comparison establishes](metrics.md#what-a-comparison-establishes) for the distinction between structural matching and metric eligibility.
 
@@ -219,3 +219,27 @@ trec_eval -q -l 1 -m ndcg_cut.1,5,10 ORIGINAL_QRELS ORIGINAL_RUN
 It invokes `recip_rank` separately with `-M 1`, `-M 5` and `-M 10`, because that measure has no cutoff parameter. It does not use `-J`, which would remove unjudged candidates and change their positions. The expected result is exactly 186 comparisons: 30 per-query values plus one macro value, for each of three cutoffs and two metrics. Each comparison uses absolute tolerance `0.00005000001` and relative tolerance zero, reflecting native four-decimal output. A pass establishes numerical agreement only under this declared protocol and output precision. The checker also requires the `0.1.0a4` default controls: no assumed nonrelevant candidates, 27/19/17 eligible MRR queries under the declared prefix rule, and unavailable NDCG and Recall. The fully resolved nonrelevant reference view is unaffected by the MRR eligibility migration.
 
 CI uses the modern NIST source pin [`ba38899cbd4de0fb699b47f39b64ef1c107e4a5c`](https://github.com/usnistgov/trec_eval/tree/ba38899cbd4de0fb699b47f39b64ef1c107e4a5c), whose version is `10.0-rc3`. The verified source archive SHA256 is `d603cd657950aebea3a5ed08cee5ea0e5e836012ed5eb63303d3a7d66e49ba6a`; the reference job builds the unmodified source and runs its upstream `quicktest` before the checker. Check the CI run for the exact RankProbe commit before claiming this gate passed. The summary records the supplied executable's hash and version, but a version string alone does not prove build provenance. This modern reference cannot be described as the original 2020 binary, whose build and complete command remain unverified.
+
+
+## Complete-retrieval follow-up on both original runs
+
+The [native job for commit `f005dd5`](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/actions/runs/39462577354/job/118765566512) built and self-tested the same fixed modern NIST source above and passed **372 comparisons**, 186 per run, at the declared native text tolerance. This is actual native execution on the original CLE-LMD, CLE-DFR and Round 1 cumulative qrels paths. It does not reproduce a historical executable or train either retriever.
+
+The separately declared experiment uses linear gain, relevance greater than zero, cutoffs 1/5/10, absent judgments assumed nonrelevant and descending ASCII document-ID ties, with the same 30 queries. It never declares complete qrels. The default controls retain 1,820 unknown candidates for CLE-LMD and 1,739 for CLE-DFR, with zero assumed nonrelevant candidates. In the separate native views, those same counts are explicitly recorded as assumptions; supplied labels remain 781 and 825.
+
+| Common-protocol result, all 30 queries | CLE-LMD | CLE-DFR | DFR minus LMD |
+| --- | ---: | ---: | ---: |
+| RankProbe MRR@10, native-aligned view | 0.3942989417989418 | 0.6606481481481481 | 0.2663492063492063 |
+| Native MRR@10 as printed | 0.3943 | 0.6606 | 0.2663 |
+| RankProbe linear NDCG@10, native-aligned view | 0.2286144995215745 | 0.35999083087476774 | 0.13137633135319324 |
+| Native NDCG@10 as printed | 0.2286 | 0.3600 | 0.1314 |
+
+Native differences subtract rounded values; their absolute error bound is twice the per-run tolerance, `0.00010000002`. MRR and NDCG remain `partial`, with NDCG referencing the known qrels pool. Recall remains unavailable. These are numerical differences between fixed archived runs under explicit assumptions, not a matched-pool delta, significance test, model-quality certificate or measured human benefit. The default unknown-policy diagnostic still reports 30 different candidate sets, zero matched queries and unavailable matched deltas.
+
+From the package source checkout, supply a native executable as above and a fresh directory:
+
+```sh
+.venv/bin/python scripts/check_trec_covid.py --pair --trec-eval /path/to/trec_eval --inputs-dir artifacts/trec-covid-pair-reference --fetch --summary artifacts/trec-covid-pair-reference-result.json
+```
+
+Alternatively omit `--fetch` and point `--inputs-dir` at the existing verified three-file pair directory. Existing summary files are refused. Without `--pair`, the two-file CLE-LMD recipe remains available. The pair checker verifies all three fingerprints before execution and again afterward; it does not rewrite original files or default reports. It requires complete native metric/topic coverage and an identical reference binary before forming the separate comparison. CI retains its aggregate summary as `rankprobe-trec-covid-pair-result.json` in `trec-eval-reference`; `runs` holds the two checks, `end_to_end_comparison` the separate arithmetic differences, and `same_pool_control` the still-unavailable matched comparison.
