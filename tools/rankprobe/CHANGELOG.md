@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Preserve accepted integer scores in the documented MTEB converter instead of rejecting values that the core CSV reader now handles exactly. Check malformed-input rejection before any CSV is written and a clean retry of the actual recipe, including distinct adjacent large integers and unknown labels.
 - Exercise RecBole's official dataset preparation and full-sort evaluation loader on eight original interactions, including a dataset user absent from the test population. Verify requested-user selection, actual batch masks and positive pairs before the existing score/export/report checks; keep this optional native environment isolated from the core.
 - Identify nested diagnostic entries by their query ID in the disclosure title, so users can select the affected query before opening its full evidence. Titles remain escaped; metric calculations and JSON are unchanged.
 - Add a pinned native gdeval source-policy check on original miniature inputs for nonpositive judgments, topic selection and default versus `-c` averaging. It does not establish RankProbe metric parity, historical 2011 equivalence or an automatic grade conversion.

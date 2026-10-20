@@ -95,8 +95,6 @@ for query_id, scores in selected.items():
         raise ValueError(f"Query {query_id!r} has no score mapping; not dropped")
     for document_id, score in scores.items():
         row = Row(query_id, document_id, score)
-        if float(score) != score:
-            raise ValueError("Score cannot be preserved by the CSV float reader")
         rows.append(row)
 
 if source.read_bytes() != original:
@@ -112,7 +110,7 @@ print("Selected subset/split:", subset, split)
 print("Exported rows:", len(rows))
 ```
 
-The destination's parent must already exist, and the destination must be new. The script validates the whole selected scope before opening it with `x`; a bad late row cannot leave a partly validated CSV. It rejects duplicate JSON keys anywhere in the file, missing scopes, metric-only shapes and empty query mappings. An empty candidate list cannot be represented as a prediction row, so inspect that query separately rather than quietly dropping it. `Row` rejects empty IDs, booleans, nonnumeric and non-finite scores. Finite JSON floats retain their parsed values through Python's round-trip number representation; integers that the CSV float reader would round are rejected. The script preserves selected record order without sorting, truncating, renaming IDs, filling labels, or modifying the source. It holds the JSON and selected rows in memory; this is a bounded local recipe, not a streaming exporter.
+The destination's parent must already exist, and the destination must be new. The script validates the whole selected scope before opening it with `x`; a bad late row cannot leave a partly validated CSV. It rejects duplicate JSON keys anywhere in the file, missing scopes, metric-only shapes and empty query mappings. An empty candidate list cannot be represented as a prediction row, so inspect that query separately rather than quietly dropping it. `Row` rejects empty IDs, booleans, nonnumeric and non-finite scores. Finite JSON floats retain their parsed values through Python's round-trip number representation. Accepted JSON integers are written as integer tokens, which the core CSV reader preserves exactly; adjacent integers such as `9007199254740992` and `9007199254740993` remain distinct. The script preserves selected record order without sorting, truncating, renaming IDs, filling labels, or modifying the source. It holds the JSON and selected rows in memory; this is a bounded local recipe, not a streaming exporter.
 
 Windows PowerShell, from the package folder with the installed core environment:
 
