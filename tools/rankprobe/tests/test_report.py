@@ -84,6 +84,22 @@ def sample_report():
 
 
 class ReportTests(unittest.TestCase):
+    def test_nested_candidate_evidence_identifies_query_before_expanding(self):
+        query = 'q<script>alert(1)</script>&'
+        runs = {
+            "left": [Row(query, "a", 2, 1), Row(query, "b", 1, 0)],
+            "right": [Row(query, "a", 2, 1), Row(query, "c", 1, 0)],
+        }
+        report = compare_runs(runs, Protocol(cutoffs=(1,)))
+        before = json.dumps(report, sort_keys=True)
+        result = render_html(report)
+        self.assertIn(
+            "<summary>Entry 1: query q&lt;script&gt;alert(1)&lt;/script&gt;&amp;</summary>",
+            result,
+        )
+        self.assertNotIn("<script>", result)
+        self.assertEqual(json.dumps(report, sort_keys=True), before)
+
     def test_actual_comparison_exposes_positive_and_negative_matched_deltas(self):
         runs = {
             "baseline": [Row("q1", "b", 3, 0), Row("q1", "a", 2, 1), Row("q1", "c", 1, 0)],

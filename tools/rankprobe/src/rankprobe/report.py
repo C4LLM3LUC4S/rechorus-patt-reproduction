@@ -291,6 +291,8 @@ def _diagnostics(value: Any, limit: int = TABLE_LIMIT) -> str:
                 name = (
                     f"{item['left']} → {item['right']}"
                     if "left" in item and "right" in item
+                    else f"Entry {index + 1}: query {item['query_id']}"
+                    if isinstance(item.get("query_id"), str)
                     else f"Entry {index + 1}"
                 )
                 entries.append(
