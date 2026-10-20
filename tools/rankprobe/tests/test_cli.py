@@ -154,6 +154,32 @@ class CliTests(unittest.TestCase):
             third = self.invoke(["demo", "--out", directory, "--overwrite", "--fail-on", "never"])
             self.assertEqual(third[0], 0, third[2])
 
+    def test_output_path_shape_errors_do_not_suggest_an_unusable_overwrite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output_file = root / "out-file"
+            output_file.write_bytes(b"keep this file")
+            code, _, error = self.invoke(["demo", "--out", str(output_file)])
+            self.assertEqual(code, 2)
+            self.assertIn("--out must name a directory", error)
+            self.assertNotIn("--overwrite", error)
+            self.assertEqual(output_file.read_bytes(), b"keep this file")
+
+            for name in ("report.json", "report.html"):
+                with self.subTest(destination=name):
+                    output = root / name
+                    blocker = output / name
+                    blocker.mkdir(parents=True)
+                    for extra in ([], ["--overwrite"]):
+                        code, _, error = self.invoke(
+                            ["demo", "--out", str(output), *extra]
+                        )
+                        self.assertEqual(code, 2)
+                        self.assertIn("A report destination is a directory", error)
+                        self.assertNotIn("--overwrite", error)
+                        self.assertTrue(blocker.is_dir())
+                    self.assertFalse((output / ("report.html" if name == "report.json" else "report.json")).exists())
+
     def test_fail_on_warning_writes_report_before_failing(self):
         with tempfile.TemporaryDirectory() as directory:
             code, _, error = self.invoke(["demo", "--out", directory, "--fail-on", "warning"])

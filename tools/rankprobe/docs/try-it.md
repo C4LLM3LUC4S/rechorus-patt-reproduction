@@ -78,6 +78,7 @@ Read the terminal diagnostic before retrying. Exit code **2** means an argument,
 | Unsupported extension for a TREC `.txt` file | Keep the original file and select `--input-format trec`; select `--qrels-format trec` as well when the judgments also use `.txt`. Only use these flags for the documented TREC formats. |
 | An invalid score with a filename and line number | Inspect that record in the source export. Produce a corrected copy with finite scores, preserving IDs and supplied judgments; audit the corrected copy with a fresh output directory. Do not replace a missing or invalid score with zero to force an import. |
 | `Report already exists` | Choose a new `--out` directory to retain the previous result. Use `--overwrite` only when you intend to replace that report pair. |
+| `--out must name a directory` or `A report destination is a directory` | Choose another output directory. A file cannot serve as `--out`, and a directory named `report.json` or `report.html` cannot be replaced with `--overwrite`. Review the existing path before moving anything. |
 
 For a score-parsing failure, RankProbe validates the input before writing a report. Correcting the source does not require deleting a partial report or changing the failure threshold. If an output error occurs after validation, inspect the diagnostic and destination before retrying; do not assume every kind of failure has the same cause.
 

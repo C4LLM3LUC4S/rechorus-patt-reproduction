@@ -500,17 +500,22 @@ def write_report(
     output = Path(output_dir)
     json_text = json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
     html_text = render_html(report)
+    if (output.exists() or output.is_symlink()) and not output.is_dir():
+        raise NotADirectoryError(
+            f"--out must name a directory; {output} is a file or unresolved link. "
+            "Choose another --out directory."
+        )
     output.mkdir(parents=True, exist_ok=True)
     destinations = [output / "report.json", output / "report.html"]
     exists_message = (
         f"Report already exists in {output}. Choose a new --out directory or pass --overwrite."
     )
-    if not overwrite and any(path.exists() or path.is_symlink() for path in destinations):
-        raise FileExistsError(exists_message)
     if any(path.is_dir() for path in destinations):
         raise IsADirectoryError(
             "A report destination is a directory; choose another --out directory."
         )
+    if not overwrite and any(path.exists() or path.is_symlink() for path in destinations):
+        raise FileExistsError(exists_message)
     with tempfile.TemporaryDirectory(prefix=".rankprobe-", dir=output) as temporary:
         staging = Path(temporary)
         staged = [staging / path.name for path in destinations]
