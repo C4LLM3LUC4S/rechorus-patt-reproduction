@@ -491,10 +491,11 @@ def write_report(
     html_text = render_html(report)
     output.mkdir(parents=True, exist_ok=True)
     destinations = [output / "report.json", output / "report.html"]
+    exists_message = (
+        f"Report already exists in {output}. Choose a new --out directory or pass --overwrite."
+    )
     if not overwrite and any(path.exists() or path.is_symlink() for path in destinations):
-        raise FileExistsError(
-            f"Report already exists in {output}. Choose a new --out directory or pass --overwrite."
-        )
+        raise FileExistsError(exists_message)
     if any(path.is_dir() for path in destinations):
         raise IsADirectoryError(
             "A report destination is a directory; choose another --out directory."
@@ -506,17 +507,34 @@ def write_report(
             path.write_text(content, encoding="utf-8")
         backups: dict[Path, Path] = {}
         installed: list[Path] = []
+        reserved: list[Path] = []
         try:
-            for destination in destinations:
-                if destination.exists() or destination.is_symlink():
-                    backup = staging / (destination.name + ".backup")
-                    os.replace(destination, backup)
-                    backups[destination] = backup
+            if overwrite:
+                for destination in destinations:
+                    if destination.exists() or destination.is_symlink():
+                        backup = staging / (destination.name + ".backup")
+                        os.replace(destination, backup)
+                        backups[destination] = backup
+            else:
+                # The earlier existence check gives a useful fast error, but
+                # another writer can pass it too. Reserve both final names
+                # atomically before replacing either staged report.
+                for destination in destinations:
+                    try:
+                        descriptor = os.open(
+                            destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+                        )
+                    except FileExistsError as exc:
+                        raise FileExistsError(exists_message) from exc
+                    reserved.append(destination)
+                    os.close(descriptor)
             for source, destination in zip(staged, destinations):
                 os.replace(source, destination)
                 installed.append(destination)
         except OSError:
             for destination in installed:
+                destination.unlink(missing_ok=True)
+            for destination in reserved:
                 destination.unlink(missing_ok=True)
             for destination, backup in backups.items():
                 os.replace(backup, destination)

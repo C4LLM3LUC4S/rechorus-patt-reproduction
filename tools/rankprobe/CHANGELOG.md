@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Reserve both report filenames before a no-overwrite write, so concurrent jobs cannot both succeed at the same output path and silently replace each other's report. A late collision preserves the other writer's file and uses the existing recovery message.
 - Exercise invalid-input rejection, corrected retry and existing-report preservation through both freshly installed entry points. Add first-use recovery guidance for interpreter selection, explicit TREC formats, invalid scores and existing reports.
 - Preserve accepted integer scores in the documented MTEB converter instead of rejecting values that the core CSV reader now handles exactly. Check malformed-input rejection before any CSV is written and a clean retry of the actual recipe, including distinct adjacent large integers and unknown labels.
 - Exercise RecBole's official dataset preparation and full-sort evaluation loader on eight original interactions, including a dataset user absent from the test population. Verify requested-user selection, actual batch masks and positive pairs before the existing score/export/report checks; keep this optional native environment isolated from the core.

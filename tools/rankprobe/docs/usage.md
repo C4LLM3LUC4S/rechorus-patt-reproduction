@@ -40,6 +40,8 @@ This identifies the source bytes available when the report is created, including
 
 The output report pair must not coincide with any prediction or judgment input, including an existing file alias. Such a destination is rejected even with `--overwrite`; choose a separate report directory.
 
+Give concurrent jobs separate `--out` directories. Without `--overwrite`, a second writer to the same report pair is refused even when both jobs began before either report existed. After an interrupted write, inspect both files before retrying; use a fresh directory to retain what remains, or use `--overwrite` only when you intend to replace that pair.
+
 In an audit summary, `judged_candidates` counts unique candidates with an actual known judgment after label resolution. `resolved_candidates` also includes unknowns assigned zero under `--unjudged nonrelevant`. Their difference reflects an assumption, not newly collected judgments.
 
 Auto detection accepts `.csv`, `.jsonl`, prediction `.run` / `.trec`, and judgment `.qrels`. For `.txt` files, declare the format explicitly:

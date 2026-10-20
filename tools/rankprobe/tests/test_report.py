@@ -1,8 +1,11 @@
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 import json
 from html.parser import HTMLParser
 import os
 from pathlib import Path
 import tempfile
+from threading import Barrier
 import unittest
 from unittest.mock import patch
 
@@ -337,6 +340,73 @@ class ReportTests(unittest.TestCase):
                     write_report({"findings": []}, folder, overwrite=True)
             for name, content in before.items():
                 self.assertEqual((folder / name).read_bytes(), content)
+
+    def test_no_overwrite_preserves_report_created_after_initial_check(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / "out"
+            competing_json = b'{"run_name":"another writer"}\n'
+            actual_directory = tempfile.TemporaryDirectory
+
+            @contextmanager
+            def competing_directory(*args, **kwargs):
+                with actual_directory(*args, **kwargs) as temporary:
+                    (folder / "report.json").write_bytes(competing_json)
+                    yield temporary
+
+            with patch("rankprobe.report.tempfile.TemporaryDirectory", competing_directory):
+                with self.assertRaisesRegex(FileExistsError, "Report already exists"):
+                    write_report(sample_report(), folder)
+            self.assertEqual((folder / "report.json").read_bytes(), competing_json)
+            self.assertFalse((folder / "report.html").exists())
+
+    def test_no_overwrite_install_error_allows_clean_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / "out"
+            actual_replace = os.replace
+
+            def fail_html_install(source, target):
+                if Path(target) == folder / "report.html":
+                    raise OSError("simulated output failure")
+                return actual_replace(source, target)
+
+            with patch("rankprobe.report.os.replace", side_effect=fail_html_install):
+                with self.assertRaisesRegex(OSError, "simulated output failure"):
+                    write_report(sample_report(), folder)
+            self.assertEqual(list(folder.iterdir()), [])
+            json_file, html_file = write_report(sample_report(), folder)
+            self.assertTrue(json_file.is_file() and html_file.is_file())
+
+    def test_two_simultaneous_no_overwrite_writers_get_one_report_pair(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / "out"
+            both_checked = Barrier(2)
+            actual_directory = tempfile.TemporaryDirectory
+
+            @contextmanager
+            def synchronized_directory(*args, **kwargs):
+                both_checked.wait(timeout=10)
+                with actual_directory(*args, **kwargs) as temporary:
+                    yield temporary
+
+            def write_named(name):
+                report = {"report_type": "audit", "run_name": name, "findings": []}
+                try:
+                    write_report(report, folder)
+                    return name, "written"
+                except FileExistsError:
+                    return name, "refused"
+
+            with patch("rankprobe.report.tempfile.TemporaryDirectory", synchronized_directory):
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    results = [future.result() for future in (
+                        pool.submit(write_named, "first"), pool.submit(write_named, "second")
+                    )]
+            self.assertEqual(sorted(status for _, status in results), ["refused", "written"])
+            winner = next(name for name, status in results if status == "written")
+            report_json = json.loads((folder / "report.json").read_text(encoding="utf-8"))
+            report_html = (folder / "report.html").read_text(encoding="utf-8")
+            self.assertEqual(report_json["run_name"], winner)
+            self.assertIn(f"Run: {winner}", report_html)
 
 
 if __name__ == "__main__":
