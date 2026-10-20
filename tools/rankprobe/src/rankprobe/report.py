@@ -31,13 +31,22 @@ FINDING_NEXT_STEPS = {
 }
 
 
+def _float_text(value: float, *, signed: bool = False) -> str:
+    compact = format(value, "+.6g" if signed else ".6g")
+    # A rounded 1 (or any other whole number) can falsely suggest an exact
+    # result. Use the shortest round-trippable spelling at that boundary.
+    if math.isfinite(value) and float(compact).is_integer() and float(compact) != value:
+        return format(value, "+") if signed else repr(value)
+    return compact
+
+
 def _text(value: Any) -> str:
     if value is None:
         return "Not available"
     if isinstance(value, bool):
         return "Yes" if value else "No"
     if isinstance(value, float):
-        return f"{value:.6g}" if math.isfinite(value) else "Not finite"
+        return _float_text(value) if math.isfinite(value) else "Not finite"
     if isinstance(value, (dict, list, tuple)):
         return json.dumps(value, ensure_ascii=False, default=str)
     return str(value)
@@ -182,10 +191,12 @@ def _metric_cell(metric: Any, *, delta: bool = False) -> str:
     if not isinstance(metric, Mapping):
         return _text(metric)
     value = metric.get("delta" if delta else "value")
-    rendered = (
-        f"{value:+.6g}" if delta and isinstance(value, (int, float)) and math.isfinite(value)
-        else _text(value)
-    )
+    if delta and isinstance(value, float) and math.isfinite(value):
+        rendered = _float_text(value, signed=True)
+    elif delta and type(value) is int:
+        rendered = f"{value:+}"
+    else:
+        rendered = _text(value)
     lines = [rendered, f"status: {_text(metric.get('status'))}"]
     if "evaluated_queries" in metric:
         count = _text(metric["evaluated_queries"])

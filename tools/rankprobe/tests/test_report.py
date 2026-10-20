@@ -257,7 +257,9 @@ class ReportTests(unittest.TestCase):
             }
         }
         rendered_near_one = ReportTables(render_html(near_one)).tables[0]
-        self.assertEqual(rendered_near_one[1][rendered_near_one[0].index("Value")], "1")
+        self.assertEqual(
+            rendered_near_one[1][rendered_near_one[0].index("Value")], "0.9999999"
+        )
         for name, report in (
             ("full coverage with candidate-pool partial", full_coverage),
             ("nonperfect", nonperfect),
@@ -266,6 +268,27 @@ class ReportTests(unittest.TestCase):
         ):
             with self.subTest(case=name):
                 self.assertNotIn("perfect results across all submitted queries", render_html(report))
+
+    def test_real_near_perfect_ndcg_and_matched_delta_do_not_display_as_exact_one(self):
+        protocol = Protocol(cutoffs=(1,), qrels_complete=True)
+        qrels = {"q": {"zero": 0, "lower": 1.0, "higher": 1.0000001}}
+        left = [Row("q", "zero", 3), Row("q", "lower", 2), Row("q", "higher", 1)]
+        right = [Row("q", "lower", 3), Row("q", "zero", 2), Row("q", "higher", 1)]
+        report = compare_runs({"baseline": left, "near_perfect": right}, protocol, qrels)
+        expected = report["runs"]["near_perfect"]["metrics"]["ndcg@1"]["value"]
+        self.assertLess(expected, 1)
+        self.assertGreater(expected, 0.999999)
+        self.assertIn(
+            f"<td>ndcg@1</td><td>{expected}</td>",
+            render_html(audit_run(right, protocol, qrels)),
+        )
+
+        html = render_html(report)
+        comparison = next(table for table in ReportTables(html).tables if "Submitted left" in table[0])
+        ndcg = next(row for row in comparison[1:] if row[0] == "ndcg@1")
+        self.assertTrue(ndcg[2].startswith(f"{expected}\n"))
+        self.assertTrue(ndcg[4].startswith(f"{expected}\n"))
+        self.assertTrue(ndcg[5].startswith(f"+{expected}\n"))
 
     def test_bounded_evidence_and_native_keyboard_controls(self):
         report = sample_report()
