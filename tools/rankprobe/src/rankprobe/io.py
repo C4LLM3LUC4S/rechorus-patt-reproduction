@@ -72,6 +72,17 @@ def _records(path: Path, required: set[str], format: str) -> Iterator[tuple[int,
                         record = json.loads(
                             line, object_pairs_hook=_unique_keys, parse_constant=_reject_constant
                         )
+                    except RecursionError as exc:
+                        fields = (
+                            "query_id,item_id,score and relevance when supplied"
+                            if "score" in required else "query_id,item_id,relevance"
+                        )
+                        raise InputError(
+                            f"{path}:{line_number}: JSON nesting is too deep. "
+                            f"Export a new flat JSONL from the source with {fields}. "
+                            "Preserve identifiers, numeric values, label availability and row order; "
+                            "keep the original unchanged."
+                        ) from exc
                     except ValueError as exc:
                         raise InputError(f"{path}:{line_number}: {exc}") from exc
                     if not isinstance(record, dict):

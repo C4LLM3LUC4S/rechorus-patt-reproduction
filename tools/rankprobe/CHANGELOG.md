@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Report JSONL parser-depth failures with a file, line and flat-export recovery route, returning CLI exit 2 instead of an uncaught traceback/exit 1; preserve source bytes, supported nested metadata and unknown labels.
 - Mark exact tie bounds as partial when they cover only eligible submitted queries or a limited metric reference, and include excluded-query scope instead of implying whole-run coverage.
 - Give a direct recovery message when `--out` is a file, and diagnose report-name directories before suggesting `--overwrite`; existing files and directories remain untouched.
 - Keep enough digits in HTML when a near-whole metric or comparison delta would otherwise display as an exact whole number; JSON metric values and calculations are unchanged.

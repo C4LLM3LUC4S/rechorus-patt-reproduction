@@ -10,6 +10,12 @@ CSV parsing reads every column before RankProbe selects the evaluation fields. A
 
 If the error says `field larger than field limit`, export a **new copy** from your source with only `query_id,item_id,score` and any supplied `relevance` for predictions, or `query_id,item_id,relevance` for qrels. Keep identifiers, scores, judgments and row order unchanged; missing prediction judgments must stay unknown. Alternatively, export equivalent JSONL from your source. JSONL avoids the CSV parser's field-size limit but retains RankProbe's identifier and numeric validation. Preserve the original export for comparison.
 
+### JSONL nesting errors
+
+The JSON parser reads the entire object, including unused metadata. If that nesting exceeds the parser's supported depth, RankProbe reports the file and physical line as an input error; the CLI exits 2 and does not create a report. Nested metadata within the parser's supported depth remains accepted. RankProbe does not raise the process recursion limit or skip the affected row.
+
+Export a **new flat JSONL** from your source with only `query_id,item_id,score` and any supplied `relevance` for predictions, or `query_id,item_id,relevance` for qrels. Preserve identifier strings, numeric values, row order and the availability of every judgment; missing prediction labels must remain absent or null. Keep the original export unchanged. Retry with the new file and the same output directory after resolving the input error.
+
 ## Prediction rows
 
 | Field | Required | Meaning |
