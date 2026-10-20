@@ -16,7 +16,7 @@ TABLE_LIMIT = 60
 
 FINDING_NEXT_STEPS = {
     "query_coverage_mismatch": "Check the missing query IDs against the intended evaluation set. Restore omitted predictions if accidental; inspect the matched-pool results before interpreting an aggregate change.",
-    "candidate_set_mismatch": "Inspect the example query IDs and candidate differences. Verify whether retrieval depth or sampling changed; matched-pool results cover only queries with identical candidate sets and resolved labels.",
+    "candidate_set_mismatch": "Inspect the query IDs and candidate differences; check whether selection changed intentionally. For reranking, export scores from the same actual candidate stage. For complete retrieval systems, evaluate the original runs under a separately justified retrieval protocol. Do not intersect results or invent missing scores or judgments to force a matched-pool delta.",
     "cross_run_label_mismatch": "Resolve the listed query-item judgment differences at their source. Rerun both exports with the same judgments before attributing a change to the model.",
     "unknown_judgments": "Inspect metric coverage and exclusion reasons. Obtain missing judgments where possible; do not select a zero assumption just to make a metric available.",
     "explicit_unjudged_qrels": "Review the listed unjudged pairs against the judgment source. Keep them unknown unless an explicit convention is justified; these qrels do not support a completeness assertion.",

@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Explain the reranking versus complete-retrieval follow-up directly in candidate-set warning actions, without encouraging candidate intersections, invented scores or judgment changes to force matching. Metrics, JSON findings and protocol selection are unchanged.
 - Add an optional fixed public CLE-LMD/CLE-DFR native pair check: verify both original runs under a separately declared complete-retrieval protocol, preserve default unknown-label and same-pool controls, and record native rounding separately.
 
 - Connect public case findings to executed actions, recheck evidence and still-pending follow-ups. Separate real public inputs from the synthetic score-provenance control.
