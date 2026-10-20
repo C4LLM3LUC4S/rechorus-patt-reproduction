@@ -68,6 +68,19 @@ CSV requires `query_id,item_id,score` and optional `relevance`. Scores rank from
 
 The report is created on your computer. Review its IDs and examples before sharing it. A screenshot or short description is enough for initial feedback; do not send private rows, access tokens, proprietary labels, or licensed data you cannot redistribute.
 
+### Recover from a failed command
+
+Read the terminal diagnostic before retrying. Exit code **2** means an argument, input or output operation failed; `--fail-on never` does not make invalid input acceptable. Exit code **1** means a report was completed and contains findings meeting the selected threshold, so open that report before changing anything. See [exit codes](usage.md#exit-codes-and-automation).
+
+| What you see | Next step |
+| --- | --- |
+| `No module named rankprobe` | Return to this package folder and install with the same explicit environment interpreter used for the audit. On Windows, use `.\.venv\Scripts\python.exe -m pip install .`; on macOS / Linux use `.venv/bin/python -m pip install .`. |
+| Unsupported extension for a TREC `.txt` file | Keep the original file and select `--input-format trec`; select `--qrels-format trec` as well when the judgments also use `.txt`. Only use these flags for the documented TREC formats. |
+| An invalid score with a filename and line number | Inspect that record in the source export. Produce a corrected copy with finite scores, preserving IDs and supplied judgments; audit the corrected copy with a fresh output directory. Do not replace a missing or invalid score with zero to force an import. |
+| `Report already exists` | Choose a new `--out` directory to retain the previous result. Use `--overwrite` only when you intend to replace that report pair. |
+
+For a score-parsing failure, RankProbe validates the input before writing a report. Correcting the source does not require deleting a partial report or changing the failure threshold. If an output error occurs after validation, inspect the diagnostic and destination before retrying; do not assume every kind of failure has the same cause.
+
 ### If predictions come from an existing framework
 
 Keep model-dependent capture/export in the Python environment that already holds your model, runner and dataset; the new core environment above does not install those frameworks. Follow the [RecBole](recbole-workflow.md), [ReChorus](rechorus-workflow.md) or [BEIR](beir-workflow.md) recipe for your actual task. Source helpers live in the extracted `scripts` folder. The NumPy-only export helpers do not require RankProbe itself to be installed in the model environment; use their source path and that environment's existing NumPy. Capture all scores and IDs from the same evaluation objects and configuration.

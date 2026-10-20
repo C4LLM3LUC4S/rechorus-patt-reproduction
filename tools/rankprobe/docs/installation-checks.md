@@ -18,6 +18,7 @@ Pass an exact wheel path for the version being checked. The checker does not sel
 | Report implementation | Both reports' core-source identities agree with independently hashed Python files inside the exact wheel |
 | Dependencies | Only RankProbe is added beyond the environment's bundled bootstrap tools |
 | Entry points | Both isolated `python -I -m rankprobe` and the actual installed `rankprobe` launcher |
+| Error recovery | Each installed entry point rejects a late invalid score without output or input changes, accepts a corrected retry at the same paths, and refuses to replace the completed report without explicit overwrite |
 | Reports | Built-in demo and copied synthetic TREC inputs produce valid reports; known values, excluded queries, source hashes and matched deltas agree with the fixture |
 
 The installation step uses the existing interpreter's bundled `venv`/`ensurepip` support and installs the specified wheel with `--no-index --no-deps`. It does not upgrade pip or download packages. Build and development dependency installation are separate steps and may need network access. The checker uses a small environment allowlist and excludes source-path overrides. `PIP_CONFIG_FILE` is set to `os.devnull`, which [pip documents as disabling configuration-file loading](https://pip.pypa.io/en/stable/topics/configuration/#pip-config-file).

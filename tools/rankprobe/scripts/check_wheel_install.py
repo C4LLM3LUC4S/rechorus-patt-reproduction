@@ -51,7 +51,8 @@ def clean_environment(venv: Path) -> dict[str, str]:
 
 
 def run(
-    stage: str, arguments: list[str], *, cwd: Path, environment: dict[str, str]
+    stage: str, arguments: list[str], *, cwd: Path, environment: dict[str, str],
+    expected_error: str | None = None,
 ) -> str:
     try:
         result = subprocess.run(
@@ -62,7 +63,13 @@ def run(
         raise GateError(f"{stage}: exceeded 180 seconds") from exc
     except OSError as exc:
         raise GateError(f"{stage}: could not start the subprocess") from exc
-    require(result.returncode == 0, f"{stage}: subprocess exited {result.returncode}")
+    if expected_error is None:
+        require(result.returncode == 0, f"{stage}: subprocess exited {result.returncode}")
+    else:
+        require(result.returncode == 2, f"{stage}: expected invalid-input/output status 2")
+        require(not result.stdout, f"{stage}: refusal wrote success output")
+        require(expected_error in result.stderr, f"{stage}: expected diagnostic missing")
+        require("Traceback" not in result.stderr, f"{stage}: refusal exposed a traceback")
     # Captured output can contain local paths. Only explicit validation results
     # are printed or retained in the summary.
     return result.stdout.strip()
@@ -219,11 +226,51 @@ def check(wheel: Path, checkout: Path) -> dict:
         require(before <= after, "installation removed baseline distributions")
         expected_version = f"RankProbe {version}"
         for name, command in (
-            ("isolated module version", [str(python), "-I", "-m", "rankprobe"]),
-            ("console launcher version", [str(console)]),
+            ("isolated module", [str(python), "-I", "-m", "rankprobe"]),
+            ("console launcher", [str(console)]),
         ):
-            output = run(name, [*command, "--version"], cwd=workspace, environment=environment)
+            output = run(f"{name} version", [*command, "--version"],
+                         cwd=workspace, environment=environment)
             require(output == expected_version, f"{name}: unexpected version output")
+            scores = workspace / f"{name} scores.csv"
+            recovery_directory = workspace / f"{name} recovery reports"
+            scores.write_text("query_id,item_id,score\nq1,a,1\nq1,b,not-a-number\n",
+                              encoding="utf-8")
+            original_hash = digest(scores)
+            audit_command = [*command, "audit", str(scores), "--cutoffs", "1,2",
+                             "--out", str(recovery_directory)]
+            run(f"{name} invalid input", audit_command, cwd=workspace, environment=environment,
+                expected_error="score must be a finite number")
+            require(digest(scores) == original_hash, f"{name}: refused input changed")
+            require(not recovery_directory.exists(), f"{name}: refused input created output")
+            # Correct only this gate's invented fixture; real source records are never edited.
+            scores.write_text("query_id,item_id,score\nq1,a,1\nq1,b,0\n", encoding="utf-8")
+            corrected_hash = digest(scores)
+            run(f"{name} corrected retry", audit_command, cwd=workspace, environment=environment)
+            retry = read_report(recovery_directory, version, "audit", source_identity)
+            require(retry["summary"]["rows"] == 2, f"{name}: retry dropped an input row")
+            require(retry["summary"]["unknown_candidates"] == 2,
+                    f"{name}: retry invented judgments")
+            require(retry["summary"]["assumed_nonrelevant_candidates"] == 0,
+                    f"{name}: retry assumed nonrelevance")
+            require(retry["protocol"]["unjudged"] == "unknown"
+                    and retry["protocol"]["qrels_complete"] is False,
+                    f"{name}: retry changed judgment policy")
+            require(all(metric["value"] is None and metric["status"] == "not_checked"
+                        for metric in retry["metrics"].values()),
+                    f"{name}: retry invented label-dependent metrics")
+            sources = retry["provenance"]["sources"]
+            require(len(sources) == 1 and sources[0]["filename"] == scores.name
+                    and sources[0]["sha256"] == corrected_hash
+                    and sources[0]["input_format"] == "csv",
+                    f"{name}: retry input provenance differs")
+            reports = {recovery_directory / filename for filename in ("report.json", "report.html")}
+            report_hashes = {path: digest(path) for path in reports}
+            run(f"{name} existing reports", audit_command, cwd=workspace, environment=environment,
+                expected_error="Choose a new --out")
+            require(all(digest(path) == value for path, value in report_hashes.items()),
+                    f"{name}: refusal changed existing reports")
+            require(digest(scores) == corrected_hash, f"{name}: corrected input changed")
         demo_directory = workspace / "demo reports"
         run(
             "console demo", [str(console), "demo", "--out", str(demo_directory)],
@@ -302,6 +349,9 @@ def check(wheel: Path, checkout: Path) -> dict:
             "matched_pool_delta_zero": True, "report_source_hashes_match": True,
             "source_inputs_unchanged": True,
             "report_core_identity_matches_wheel": True,
+            "installed_entrypoints_reject_invalid_input": True,
+            "installed_entrypoints_clean_retry_preserves_unknowns": True,
+            "installed_entrypoints_preserve_existing_reports": True,
         },
     }
 
