@@ -1,8 +1,7 @@
-"""Exercise actual RecBole case-study helpers on original nonsequential fixtures.
+"""Exercise a real RecBole evaluation loader and scoring/export handoff.
 
-This optional integration check trains no model and downloads no dataset. Its
-dataset/model objects implement only the protocol used by the upstream helper;
-they do not exercise RecBole's training or dataloader construction lifecycle.
+Original tiny split files construct the official dataset, samplers and loader.
+Scores come from a deterministic untrained provider; no dataset is downloaded.
 """
 
 from __future__ import annotations
@@ -10,6 +9,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import importlib
 import importlib.metadata as metadata
 import importlib.util
 import json
@@ -18,12 +18,17 @@ from pathlib import Path
 import platform
 import subprocess
 import sys
-from types import SimpleNamespace
 
 
 SOURCE_SHA256 = {
     "recbole.utils.case_study": "a3690b50c6aee1570632c43db7ba02f5b9307f9e14585960d0815f62e44c0f68",
     "recbole.data.interaction": "4a72fbdb14b7be157336ee0c93f1b9596feb2f4065736cde2b15cf10e35ef801",
+    "recbole.config.configurator": "fa9bc256b8bed0c364ab5a9939465f905695d194cdf1c195beb195b47f392618",
+    "recbole.data.utils": "df3d4c9bd47be8490303df5e228cdfa4ccc3a08dac6efd6804a017fd677ba7de",
+    "recbole.data.dataset.dataset": "0e8c17f6e33d3a8dc775121d7523af18264f385357f5c3fd571e70f0b560a6dd",
+    "recbole.data.dataloader.general_dataloader": "961853fb35415f54d5f5f015773260dab7225ee6339454de89c9b52d2ec82321",
+    "recbole.data.dataloader.abstract_dataloader": "4d91db0e3555b47afa2ddba4938fa1f9203d14e58b04937259447203376a1a70",
+    "recbole.sampler.sampler": "8b165ae70393e8cc75aa81de7b2863b96822828206ebd7b468fdb1a741f197a0",
 }
 
 
@@ -96,30 +101,105 @@ def run_comparison(out: Path, expected: Path, exported: Path, qrels: Path) -> di
     return _read_cli_report(process, report_directory)
 
 
-def _fixtures(np, torch):
-    """Original fixtures, not trained models or instantiated framework datasets."""
-    users = np.array(["[PAD]", "learner,甲", "reader B"])
-    items = np.array(["[PAD]", "history one", "paper,α", "paper β", "unjudged", "negative"])
+def select_requested_users(evaluation_uids: list[int], requested: list[int]) -> list[int]:
+    """Check the declared requested population; never silently intersect it."""
+    require(bool(requested), "population: requested user list is empty")
+    require(len(set(requested)) == len(requested), "population: duplicate requested users")
+    require(all(uid in evaluation_uids for uid in requested),
+            "population: requested users are absent from this evaluation loader")
+    return list(requested)
 
-    class Dataset:
-        uid_field = "user_id"
-        iid_field = "item_id"
-        user_num = 3
-        item_num = 6
 
-        def join(self, interaction):
-            return interaction
+def _write_loader_inputs(out: Path) -> list[Path]:
+    folder = out / "loader-inputs" / "rankprobe_original"
+    folder.mkdir(parents=True, exist_ok=False)
+    splits = {
+        "train": [("learner,甲", "history one"), ("reader B", "paper,α"),
+                  ("dataset only", "paper β"), ("reader B", "unjudged"),
+                  ("reader B", "negative")],
+        "valid": [("dataset only", "paper,α")],
+        "test": [("learner,甲", "paper,α"), ("reader B", "paper β")],
+    }
+    paths = []
+    for split, rows in splits.items():
+        path = folder / f"rankprobe_original.{split}.inter"
+        with path.open("x", encoding="utf-8", newline="\n") as handle:
+            handle.write("user_id:token\titem_id:token\n")
+            handle.writelines(f"{user}\t{item}\n" for user, item in rows)
+        paths.append(path)
+    return paths
 
-        def id2token(self, field, ids):
-            return (users if field == self.uid_field else items)[ids]
 
-    histories = np.empty(3, dtype=object)
-    histories[0] = torch.tensor([], dtype=torch.long)
-    histories[1] = torch.tensor([1], dtype=torch.long)
-    histories[2] = torch.tensor([2, 4, 5], dtype=torch.long)
-    test_data = SimpleNamespace(
-        dataset=Dataset(), is_sequential=False, uid2history_item=histories,
-    )
+def _fixtures(np, torch, out: Path):
+    from recbole.config import Config
+    from recbole.data.dataloader import FullSortEvalDataLoader
+    from recbole.data.utils import create_dataset, data_preparation
+
+    inputs = _write_loader_inputs(out)
+    originals = {str(path.relative_to(out)): digest(path) for path in inputs}
+    cache_paths = [out / "unused-dataset.pth", out / "unused-loaders.pth"]
+    require(not any(path.exists() for path in cache_paths), "loader: cache paths must be absent")
+    config = Config(model="BPR", dataset="rankprobe_original", config_dict={
+        "data_path": str(out / "loader-inputs"),
+        "benchmark_filename": ["train", "valid", "test"],
+        "load_col": {"inter": ["user_id", "item_id"]},
+        "gpu_id": "", "use_gpu": False, "worker": 0,
+        "train_batch_size": 4, "eval_batch_size": 12,
+        "eval_args": {"split": {"RS": [0.8, 0.1, 0.1]}, "group_by": "user",
+                      "order": "RO", "mode": "full"},
+        "save_dataset": False, "save_dataloaders": False,
+        "dataset_save_path": str(cache_paths[0]),
+        "dataloaders_save_path": str(cache_paths[1]),
+        "checkpoint_dir": str(out / "unused-checkpoints"),
+        "show_progress": False,
+    })
+    dataset = create_dataset(config)
+    train_data, valid_data, test_data = data_preparation(config, dataset)
+    require(isinstance(test_data, FullSortEvalDataLoader), "loader: official full-sort loader required")
+    require(not test_data.is_sequential, "loader: expected nonsequential evaluation")
+    users = dataset.id2token(dataset.uid_field, np.arange(dataset.user_num))
+    items = dataset.id2token(dataset.iid_field, np.arange(dataset.item_num))
+    require(users.tolist() == ["[PAD]", "learner,甲", "reader B", "dataset only"],
+            "loader: original user token mapping differs")
+    require(items.tolist() == ["[PAD]", "history one", "paper,α", "paper β", "unjudged", "negative"],
+            "loader: original item token mapping differs")
+    evaluation_uids = test_data.uid_list.detach().cpu().tolist()
+    require(evaluation_uids == [1, 2] and dataset.user_num == 4,
+            "loader: dataset and evaluation user populations differ from original case")
+    validation_uids = valid_data.uid_list.detach().cpu().tolist()
+    require(validation_uids == [3], "loader: validation population differs from original case")
+    require(test_data.uid2history_item[3] is None and test_data.uid2positive_item[3] is None,
+            "loader: absent user's history and positives should be absent")
+    require([len(part.dataset) for part in (train_data, valid_data, test_data)] == [5, 1, 2],
+            "loader: explicit benchmark split sizes changed")
+    batch, history_index, positive_u, positive_i = next(iter(test_data))
+    batch_uids = batch[dataset.uid_field].tolist()
+    observed_history = {(batch_uids[row], item) for row, item in
+                        zip(history_index[0].tolist(), history_index[1].tolist())}
+    require(observed_history == {(1, 1), (2, 2), (2, 4), (2, 5)},
+            "loader: actual batch history masks differ")
+    positives = {(batch_uids[row], item) for row, item in
+                 zip(positive_u.tolist(), positive_i.tolist())}
+    require(positives == {(1, 2), (2, 3)}, "loader: actual batch test positives differ")
+    selected_prefix = evaluation_uids[:2]
+    requested = list(reversed(selected_prefix))
+    uids = select_requested_users(evaluation_uids, requested)
+    try:
+        select_requested_users(evaluation_uids, [3, selected_prefix[0]])
+    except GateError:
+        missing_request_rejected = True
+    else:
+        raise GateError("population: absent request was silently accepted")
+    require(not any(path.exists() for path in cache_paths), "loader: unexpected cache serialization")
+    require({str(path.relative_to(out)): digest(path) for path in inputs} == originals,
+            "loader: original split inputs changed")
+    population = {"dataset_nonpadding_uids": [1, 2, 3], "evaluation_uids": evaluation_uids,
+                  "validation_uids": validation_uids,
+                  "documented_first_two_uids": selected_prefix, "requested_scoring_uids": requested,
+                  "absent_requested_uids": [3], "absent_request_rejected": missing_request_rejected,
+                  "actual_batch_uids": batch_uids, "test_positive_pairs": sorted(positives),
+                  "history_pairs": sorted(observed_history), "split_interactions": [5, 1, 2],
+                  "cache_files_absent": True}
 
     class Model(torch.nn.Module):
         def __init__(self):
@@ -128,14 +208,15 @@ def _fixtures(np, torch):
                 [0, 0, 0, 0, 0, 0],
                 [9, 8, .75, .625, .5, .25],
                 [9, .75, 8, .625, 7, 6],
+                [0, 0, 0, 0, 0, 0],
             ], dtype=torch.float64))
 
         def full_sort_predict(self, interaction):
             # The actual helper masks its returned tensor in place. A fresh
             # prediction keeps this fixture's original finite score table intact.
-            return self.table[interaction[Dataset.uid_field]].clone()
+            return self.table[interaction[dataset.uid_field]].clone()
 
-    return [2, 1], Model(), test_data, users, items
+    return uids, Model(), test_data, users, items, inputs, originals, population
 
 
 def _load_exporter():
@@ -161,23 +242,28 @@ def check_workflow(out: Path) -> dict:
     try:
         versions = {name: metadata.version(name) for name in (
             "recbole", "torch", "numpy", "pandas", "tensorboard", "texttable",
-            "colorlog", "colorama", "rankprobe",
+            "colorlog", "colorama", "rankprobe", "PyYAML", "scipy", "scikit-learn", "tqdm",
         )}
     except metadata.PackageNotFoundError as exc:
         raise GateError("versions: an integration dependency has no distribution metadata") from exc
     sources = {}
-    for name, module in (("recbole.utils.case_study", case_study),
-                         ("recbole.data.interaction", interaction)):
+    for name in SOURCE_SHA256:
+        try:
+            module = importlib.import_module(name)
+        except ImportError as exc:
+            raise GateError("imports: optional RecBole loader dependencies are unavailable") from exc
         source = Path(module.__file__)
         require(source.suffix == ".py" and source.is_file(), "sources: Python source missing")
         sources[name] = digest(source)
     require(sources == SOURCE_SHA256, "sources: installed RecBole helper differs from pinned source")
     export_full_sort = _load_exporter()
 
-    uid_series, model, test_data, users, items = _fixtures(np, torch)
+    out.mkdir(exist_ok=False)
+    uid_series, model, test_data, users, items, loader_inputs, loader_hashes, population = _fixtures(np, torch, out)
     uid_snapshot = list(uid_series)
     model_snapshot = model.table.clone()
-    history_snapshot = [history.clone() for history in test_data.uid2history_item]
+    history_snapshot = [None if history is None else history.clone()
+                        for history in test_data.uid2history_item]
     scores = case_study.full_sort_scores(uid_series, model, test_data)
     scores_snapshot = scores.clone()
     expected_scores = np.array([
@@ -196,7 +282,6 @@ def check_workflow(out: Path) -> dict:
             "RecBole topk: unexpected non-finite candidate")
     require(torch.equal(model.table, model_snapshot), "fixture: original model score table changed")
 
-    out.mkdir(exist_ok=False)
     unsafe_csv = out / "naive-full-sort.csv"
     write_csv(unsafe_csv, ["query_id", "item_id", "score"], [
         (users[uid], items[item], float(scores[row, item]))
@@ -274,7 +359,7 @@ def check_workflow(out: Path) -> dict:
             raise GateError("invalid score: eligible non-finite value was silently removed")
 
     inputs = (unsafe_csv, exported_csv, exported_directory / "exclusions.json",
-              expected_csv, judgments_csv)
+              expected_csv, judgments_csv, *loader_inputs)
     hashes_before = {str(path.relative_to(out)): digest(path) for path in inputs}
     report = run_comparison(out, expected_csv, exported_csv, judgments_csv)
     require(report["report_type"] == "compare", "comparison: wrong report type")
@@ -305,10 +390,13 @@ def check_workflow(out: Path) -> dict:
                 "comparison: input provenance hash differs")
     require({str(path.relative_to(out)): digest(path) for path in inputs} == hashes_before,
             "integration: synthetic input files changed")
+    require(all(digest(out / name) == value for name, value in loader_hashes.items()),
+            "loader: original split files changed after scoring/export")
     require(torch.equal(scores, scores_snapshot) and torch.equal(model.table, model_snapshot),
             "integration: original score tensors changed")
     require(uid_series == uid_snapshot and all(
-        torch.equal(history, original)
+        (history is None and original is None)
+        or (history is not None and original is not None and torch.equal(history, original))
         for history, original in zip(test_data.uid2history_item, history_snapshot)
     ), "integration: original user IDs or history masks changed")
 
@@ -322,6 +410,7 @@ def check_workflow(out: Path) -> dict:
             "exclusions_by_reason": {"padding": 2, "history": 4},
             "unknown_candidates": 1, "mrr_at_1": .5, "mrr_at_2": .75,
             "rejected_eligible_nonfinite_scores": rejected,
+            "official_loader_population": population,
         },
         "checks": {
             "actual_recbole_full_sort_scores_called": True,
@@ -340,10 +429,16 @@ def check_workflow(out: Path) -> dict:
             "complete_qrels_not_assumed": True,
             "input_provenance_hashes_match": True,
             "original_tensors_and_synthetic_files_unchanged": True,
+            "official_dataset_and_full_sort_loader_constructed": True,
+            "actual_loader_batch_masks_and_positives_verified": True,
+            "evaluation_user_selection_preserves_requested_order": True,
+            "absent_dataset_user_rejected_without_silent_drop": True,
+            "original_split_files_and_absent_cache_paths_verified": True,
         },
         "limitations": [
-            "Original synthetic nonsequential helper fixtures only; no model training or dataset download.",
-            "Actual case-study helpers and Interaction are used; dataloader construction is not exercised.",
+            "Original eight-interaction nonsequential split files only; no training or dataset download.",
+            "Official Config, dataset preparation, full-sort loader and scoring helpers are used; "
+            "scores come from an untrained deterministic provider, not a fitted recommender.",
             "Padding/history exclusions implement an explicit upstream policy, not a leakage certificate.",
             "No sequential/repeated-user contexts, universal metric parity, adoption or human time saved is established.",
         ],

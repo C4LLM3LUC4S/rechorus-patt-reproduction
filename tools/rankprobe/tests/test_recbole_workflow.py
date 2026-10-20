@@ -21,13 +21,44 @@ def test_existing_output_is_rejected_before_optional_imports(tmp_path, monkeypat
     real_import = builtins.__import__
 
     def guarded_import(name, *args, **kwargs):
-        assert name not in {"numpy", "torch", "recbole.data", "recbole.utils"}
+        assert name not in {"numpy", "torch", "recbole"} and not name.startswith("recbole.")
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", guarded_import)
     with pytest.raises(checker.GateError, match="directory must be new"):
         checker.check_workflow(out)
     assert kept.read_bytes() == b"keep original"
+
+
+def test_requested_users_keep_requested_order_and_inputs():
+    evaluation_uids = [1, 2, 3]
+    requested = [3, 1]
+    selected = checker.select_requested_users(evaluation_uids, requested)
+    assert selected == [3, 1]
+    assert evaluation_uids == [1, 2, 3]
+    assert requested == [3, 1]
+
+
+def test_absent_requested_user_is_refused_without_silently_dropping_it():
+    evaluation_uids = [1, 2]
+    requested = [2, 3, 1]
+    with pytest.raises(checker.GateError):
+        checker.select_requested_users(evaluation_uids, requested)
+    assert evaluation_uids == [1, 2]
+    assert requested == [2, 3, 1]
+
+
+@pytest.mark.parametrize("requested", [[], [2, 2]])
+def test_empty_or_duplicate_requested_users_are_refused(requested):
+    before = requested.copy()
+    with pytest.raises(checker.GateError):
+        checker.select_requested_users([1, 2], requested)
+    assert requested == before
+
+
+def test_empty_evaluation_population_cannot_supply_requested_user():
+    with pytest.raises(checker.GateError):
+        checker.select_requested_users([], [1])
 
 
 def test_missing_optional_dependency_does_not_create_output(tmp_path, monkeypatch, capsys):
