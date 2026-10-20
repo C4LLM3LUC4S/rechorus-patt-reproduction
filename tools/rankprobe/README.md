@@ -108,6 +108,8 @@ For `.txt` files, select `--input-format trec` and `--qrels-format trec` explici
 
 MRR and NDCG are reported with their evaluated-query counts and scope. Recall is available only with explicitly declared complete qrels. Candidate-pool metrics do not measure full-corpus retrieval quality. A completeness flag records your assertion; RankProbe cannot verify it from scores alone.
 
+For the next step after a finding, see [case actions and rechecks](docs/case-actions.md). It separates executed public-input checks from pending follow-up experiments and synthetic controls.
+
 ## Existing framework outputs
 
 Export a small ReChorus-style NPZ locally with the optional NumPy adapter:

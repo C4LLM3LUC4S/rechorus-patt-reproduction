@@ -174,6 +174,8 @@ All 30 queries occur in both runs, but all 30 have different submitted candidate
 
 Two end-to-end retrievers can legitimately return different documents. Follow the `candidate_set_mismatch` action by inspecting whether candidate selection changed as intended. For a question about reranking alone, obtain a shared candidate export. For a question about the complete retrieval systems, preserve both original runs and establish the intended evaluation protocol separately. Do not intersect their results or invent absent scores or zero labels to force structural matching.
 
+The diagnostic has been independently checked; neither a shared-candidate reranking export nor a two-system native follow-up has been executed here. The [action and recheck table](case-actions.md#different-retrieval-candidate-sets) states what each follow-up would need to establish. The separate native check below covers CLE-LMD only.
+
 The two displayed MRR@10 values also average different eligible query populations. Their subtraction would not be a matched improvement estimate. NDCG remains unavailable because each query has an unknown submitted candidate; Recall additionally lacks a justified completeness declaration. These results demonstrate report interpretation on public real inputs, not independent human use, time saved or a quality judgment about either submission. See [what a comparison establishes](metrics.md#what-a-comparison-establishes) for the distinction between structural matching and metric eligibility.
 
 ## Separate native-reference check

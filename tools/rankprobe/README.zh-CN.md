@@ -103,6 +103,8 @@ python -m rankprobe audit results.run --qrels judgments.qrels --out reports/retr
 
 若文件扩展名是 `.txt`，需显式加入 `--input-format trec --qrels-format trec`。排序由 score 决定，文件中的 rank 不参与排序；qrels 的 `-1` 保持为未知，含此类条目时不能声明完整 qrels。[检索案例](examples/trec/README.md) 展示了一个可手算的陷阱：漏掉困难查询就能让平均 MRR 翻倍，共同查询上的结果却没有提升。案例是原创合成数据。
 
+发现问题后如何行动和复核，见 [案例行动与证据状态](docs/case-actions.md)：其中区分已执行的公开输入检查、尚未完成的后续实验与合成控制，便于判断下一步需要什么证据。
+
 ## 导出已有实验
 
 提供独立实现的 ReChorus 风格 NPZ 适配器，NumPy 仅为此可选工具所需：
