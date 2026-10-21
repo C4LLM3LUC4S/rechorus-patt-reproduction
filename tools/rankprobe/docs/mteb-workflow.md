@@ -116,10 +116,25 @@ Windows PowerShell, from the package folder with the installed core environment:
 
 ```powershell
 .\.venv\Scripts\python.exe convert_mteb_scores.py
-.\.venv\Scripts\python.exe -m rankprobe audit my-inputs/selected-scores.csv --out reports/mteb-audit
+if ($LASTEXITCODE -eq 0) {
+    .\.venv\Scripts\python.exe -m rankprobe audit my-inputs/selected-scores.csv --out reports/mteb-audit
+} else {
+    throw "MTEB conversion failed; no audit started. Keep the diagnostic and use a new CSV destination."
+}
 ```
 
-On macOS / Linux, replace `.\.venv\Scripts\python.exe` with `.venv/bin/python`. Use a new report directory. Without judgments, label-dependent metrics are unverified; structural findings such as ties remain useful.
+macOS / Linux:
+
+```sh
+.venv/bin/python convert_mteb_scores.py &&
+    .venv/bin/python -m rankprobe audit my-inputs/selected-scores.csv --out reports/mteb-audit
+```
+
+Require conversion exit `0` before starting the audit. Two independent shell commands can continue after a failed conversion and audit a previous CSV at the same path. The conditional blocks above stop that handoff; RankProbe's own completed-report exit `1` still has its [usual meaning](usage.md#exit-codes-and-automation).
+
+If conversion fails, keep its diagnostic and the existing files. Fix invalid source data in a new source export, or choose a new `destination` in the script when the old destination exists. Update the audit's CSV path to that exact destination, choose a new report directory, and rerun the conditional block. Do not audit an existing CSV merely because it parses or overwrite it to clear the error. A filesystem error during writing can also leave a partial CSV even though input validation finished first; require a successful fresh-output conversion before proceeding. Without judgments, label-dependent metrics are unverified; structural findings such as ties remain useful.
+
+An original synthetic PowerShell handoff control reproduced conversion exit `1` for an existing CSV followed by a completed audit of that stale CSV under the former independent commands. The conditional form stops before creating a report; a fresh-output retry audits only the new source's selected scope. This is a command-orchestration check of the local bridge, not a new MTEB framework execution, outside adoption or measured human time saved.
 
 If you have permitted, independent judgments for **the same task, subset, split and ID namespace**, transfer their supplied grades to a separate [judgment file](input-format.md). Keep missing judgments unknown. Then add `--qrels my-inputs/judgments.csv` to the audit command. The score bridge deliberately does not infer relevance from scores or create judgments for absent pairs. Do not assert `--qrels-complete` or add `--unjudged nonrelevant` just to obtain a metric.
 
