@@ -24,7 +24,7 @@ python scripts/export_rechorus.py test_predictions.npz --out local_export.csv --
 
 With these positive-only judgments, MRR@1 can be 1 because only queries with a known positive first are eligible. Read its coverage before interpreting it. The [synthetic example and explanation](metrics.md#positive-only-labels) show 1 of 2 queries eligible; this is not evidence that the whole run ranked perfectly.
 
-For an already verified one-positive sampled-negative evaluation protocol, keep the default unknown labels from the export above and apply the nonrelevance assumption when auditing that existing CSV:
+For an already verified one-positive sampled-negative evaluation protocol, keep the default unknown labels from the export above and apply the nonrelevance assumption when auditing that existing CSV. Confirm export success and [check CSV/metadata pairing](#check-csv-and-metadata-pairing) before auditing copied files:
 
 ```sh
 python -m rankprobe audit local_export.csv --unjudged nonrelevant --out reports/sampled-assumed
@@ -54,7 +54,44 @@ This is pseudonymization, not a guarantee of anonymity: scores and relationships
 
 ## Output and reproducibility
 
-The exporter writes CSV and `<output>.metadata.json`. Metadata records a source SHA-256, selected query count, positive column, negative assumption, identity mode and alignment/privacy caveats. Existing outputs are refused unless `--overwrite` is explicit; neither output may replace the source archive, including through a symbolic link or hard link. The CSV and metadata must also be distinct files. No complete qrels are inferred.
+The exporter writes CSV and `<output>.metadata.json`. Metadata records `source_sha256` for the NPZ, `predictions_sha256` for the completed CSV bytes, selected query count, positive column, negative assumption, identity mode and alignment/privacy caveats. The returned Python metadata and CLI JSON contain the same record as the saved sidecar. Existing outputs are refused unless `--overwrite` is explicit; neither output may replace the source archive, including through a symbolic link or hard link. The CSV and metadata must also be distinct files. No complete qrels are inferred.
+
+### Check CSV and metadata pairing
+
+A source fingerprint alone cannot select the CSV: the same NPZ can produce different labels or identities under different settings, and an older exporter can serialize scores differently. A retained integer-score regression, for example, had two different CSVs with identical source-only sidecars. New exports record the CSV fingerprint after closing the output file. The core audit still fingerprints its actual input and does not automatically ingest this sidecar or its label assumptions.
+
+Save this read-only standard-library check as a local `check_npz_pair.py`, set `csv_path` to your export, and run it with the Python interpreter used for the audit. It compares the sidecar's recorded output fingerprint with the current CSV bytes:
+
+```python
+import hashlib
+import json
+from pathlib import Path
+import re
+
+csv_path = Path("local_export.csv")
+metadata_path = csv_path.with_suffix(csv_path.suffix + ".metadata.json")
+metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+expected = metadata.get("predictions_sha256") if isinstance(metadata, dict) else None
+if not isinstance(expected, str) or re.fullmatch(r"[0-9a-f]{64}", expected) is None:
+    raise ValueError(
+        "No valid CSV fingerprint in this sidecar. Keep both originals; "
+        "re-export the intended complete NPZ with declared settings to a new destination."
+    )
+digest = hashlib.sha256()
+with csv_path.open("rb") as handle:
+    for block in iter(lambda: handle.read(1024 * 1024), b""):
+        digest.update(block)
+if digest.hexdigest() != expected:
+    raise ValueError(
+        "CSV/metadata fingerprint mismatch. Keep both files; locate the matching pair "
+        "or re-export the intended complete NPZ to a new destination before auditing."
+    )
+print("CSV bytes match the fingerprint recorded in this sidecar.")
+```
+
+Stop before auditing if this check fails; a failed pre-audit check is not RankProbe's completed-findings exit `1`. Missing files or malformed JSON also require finding the intended pair. Legacy sidecars without `predictions_sha256` cannot establish this byte match. Keep them unchanged and, when the complete source and declared settings are available, use the current exporter with a fresh destination. Adding a fingerprint to an arbitrary old sidecar cannot recover the original association. Do not change labels to repair a mismatch.
+
+A byte-identical copy matches; even newline-only changes do not. A match establishes consistency with this recorded digest, not authenticity of either file, the declared positive column or label origin, source alignment, anonymity, or model quality. Hashing adds one streaming read of the CSV; concurrent modification and coordinated edits to both files are outside this check.
 
 An empty or truncated NPZ, or a ZIP checksum or DEFLATE decoding failure while reading an array, is an input error: the CLI returns `2` with a recovery message, and the Python helper raises `ValueError`. These failures occur before CSV or metadata output. Complete `numpy.savez` and `numpy.savez_compressed` captures follow the same score, identity and label contract. Keep the failed capture unchanged, recapture the complete scores and aligned IDs into a new NPZ, and retry with a new CSV destination. Confirm export success before auditing; an old CSV is not evidence that this capture succeeded. Re-exporting needs the original complete source arrays and does not reconstruct missing predictions from a damaged archive.
 

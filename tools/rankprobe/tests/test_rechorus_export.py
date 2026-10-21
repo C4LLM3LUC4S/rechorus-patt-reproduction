@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from io import BytesIO
 import csv
+import hashlib
 import importlib.util
 import json
 import os
@@ -26,6 +27,60 @@ def write_npz(tmp_path, **arrays):
     source = tmp_path / "predictions.npz"
     np.savez(source, **arrays)
     return source
+
+
+@pytest.mark.parametrize("identity", ["local", "source"])
+def test_output_fingerprint_distinguishes_same_source_exports_and_edited_copy(tmp_path, identity):
+    source = write_npz(
+        tmp_path, scores=np.array([[9007199254740993, 9007199254740992]], dtype=np.int64),
+        item_id=np.array([["positive", "other"]]), query_id=np.array(["event-1"]),
+    )
+    source_bytes = source.read_bytes()
+    outputs = [tmp_path / "first.csv", tmp_path / "second.csv"]
+    metadata = [exporter.export_npz(source, out, positive_index=index, identity=identity)
+                for index, out in enumerate(outputs)]
+    original_outputs = [out.read_bytes() for out in outputs]
+    assert metadata[0]["source_sha256"] == metadata[1]["source_sha256"]
+    assert metadata[0]["exported_rows"] == metadata[1]["exported_rows"] == 2
+    assert metadata[0]["predictions_sha256"] != metadata[1]["predictions_sha256"]
+    for index, out in enumerate(outputs):
+        assert metadata[index]["predictions_sha256"] == hashlib.sha256(out.read_bytes()).hexdigest()
+        assert json.loads(out.with_suffix(".csv.metadata.json").read_text(encoding="utf-8")) == metadata[index]
+        rows = read_predictions(out)
+        assert [row.score for row in rows] == [9007199254740993, 9007199254740992]
+        assert [row.relevance for row in rows] == ([1, None] if index == 0 else [None, 1])
+        assert metadata[index]["other_candidates"] == "unknown"
+        assert not metadata[index]["qrels_complete"]
+
+    copied = tmp_path / "edited-copy.csv"
+    copied.write_bytes(original_outputs[0].replace(b",9007199254740993,", b",9007199254740994,", 1))
+    assert hashlib.sha256(copied.read_bytes()).hexdigest() != metadata[0]["predictions_sha256"]
+    assert [out.read_bytes() for out in outputs] == original_outputs
+    assert source.read_bytes() == source_bytes
+
+
+def test_cli_output_fingerprint_matches_saved_sidecar_and_exact_csv(tmp_path):
+    source = write_npz(
+        tmp_path, scores=np.array([[9007199254740993, 9007199254740992]], dtype=np.int64),
+        item_id=np.array([["positive", "other"]]), query_id=np.array(["event-1"]),
+    )
+    original = source.read_bytes()
+    out = tmp_path / "cli.csv"
+    process = subprocess.run(
+        [sys.executable, str(SCRIPT), str(source), "--out", str(out), "--positive-index", "0",
+         "--identity", "source"], capture_output=True, text=True, encoding="utf-8", timeout=30,
+    )
+    assert process.returncode == 0 and process.stderr == ""
+    metadata = json.loads(process.stdout)
+    assert metadata == json.loads(out.with_suffix(".csv.metadata.json").read_text(encoding="utf-8"))
+    assert metadata["source_sha256"] == hashlib.sha256(original).hexdigest()
+    assert metadata["predictions_sha256"] == hashlib.sha256(out.read_bytes()).hexdigest()
+    rows = read_predictions(out)
+    assert [(row.query_id, row.item_id, row.score, row.relevance) for row in rows] == [
+        ("event-1", "positive", 9007199254740993, 1),
+        ("event-1", "other", 9007199254740992, None),
+    ]
+    assert source.read_bytes() == original
 
 
 @pytest.mark.parametrize("suffix", [".npy", ".npz"])

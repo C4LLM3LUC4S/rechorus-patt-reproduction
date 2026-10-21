@@ -12,6 +12,14 @@ from zipfile import BadZipFile
 import zlib
 
 
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 @contextmanager
 def _read_npz(source: Path, np):
     try:
@@ -161,12 +169,8 @@ def export_npz(
                     )
                 )
 
-    digest = hashlib.sha256()
-    with source.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
     metadata = {
-        "source_sha256": digest.hexdigest(),
+        "source_sha256": _sha256(source),
         "source_queries": len(scores),
         "exported_queries": row_count,
         "candidates_per_query": scores.shape[1],
@@ -204,6 +208,7 @@ def export_npz(
         writer = csv.writer(handle)
         writer.writerow(("query_id", "item_id", "score", "relevance"))
         writer.writerows(exported)
+    metadata["predictions_sha256"] = _sha256(destination)
     metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     return metadata
 
