@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Add a fixed public MovieLens fitted-score case with independent per-query checks, shared observed-item pools, a deliberate one-decimal presentation control and byte-identical recovery from retained scores. Existing development CI jobs retain aggregate evidence only; core metrics and runtime dependencies are unchanged.
 - Add a reproducible external-qrels identity walkthrough: distinguish local pseudonyms from source tokens and legitimate outside-pool judgments, retain original files and re-export only with supported shared identities. Metric and label resolution are unchanged.
 - Record the completed NPZ export CSV's SHA-256 in the sidecar and returned metadata, with a read-only pairing recipe and fresh-export recovery for missing or mismatched fingerprints. Source-only legacy sidecars and label assumptions remain unchanged.
 - Identify single-array NPY inputs to the NPZ exporter with named-array capture guidance, including mislabeled files; retain valid content-based loading instead of rejecting by suffix.

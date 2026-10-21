@@ -1,5 +1,11 @@
 # Verification record
 
+## Fitted public-data scores and retained capture
+
+The [MovieLens score case](../examples/movielens-scores/README.md) fits two small NumPy models on the official fixed training split and scores every held-out observed pair. The local Windows/Python 3.12.5 run passed 11,058 independent per-query/macro/delta comparisons, kept the no-qrels control unknown, and restored a deliberately rounded presentation from an unchanged exact capture. The source archive, original rows and row-level reports stay local; only reviewed aggregate observations are shared. Same-pool and score-recovery assertions concern this observed-item experiment, not full-catalog retrieval, native-framework parity or historical lost-score reconstruction.
+
+Fifteen original checker regressions cover invalid/repeated ratings, preserved outputs, fixed-source and fetch rejection, lexical/zero-ideal formula controls, an oracle that rejects a well-formed constant-zero engine, cold-ID fit isolation and the actual miniature CLI/recovery path. Cold-ID isolation exposed and corrected a new checker's initial parameter-allocation dependency before publication. Core metrics were unchanged. The existing six development matrix jobs now execute the fixed public-data case and upload only its aggregate summary; inspect the exact head's CI before treating these new executions as accepted.
+
 ## Known-prefix MRR eligibility (`0.1.0a4`)
 
 This version refines the deliberately conservative `0.1.0a3` contract. A known first relevant rank stays determined when only later labels are unknown. Unknowns before that rank remain unresolved; no missing source label is written as zero. MRR outputs record `known_first_relevant_prefix`, and MRR deltas require matching explicit rules. NDCG, Recall and exact tie-bound requirements are unchanged.

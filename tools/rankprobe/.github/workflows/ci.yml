@@ -58,6 +58,17 @@ jobs:
       - name: Install and exercise built wheel in isolation
         working-directory: ${{ steps.package.outputs.root }}
         run: python scripts/check_wheel_install.py --wheel dist/*.whl
+      - name: Check fitted scores and retained-score recovery on fixed MovieLens input
+        working-directory: ${{ steps.package.outputs.root }}
+        run: python scripts/check_movielens_scores.py --fetch "$RUNNER_TEMP/rankprobe-movielens.zip" --out "$RUNNER_TEMP/rankprobe-movielens-case"
+      - name: Save aggregate fitted-score evidence only
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: movielens-shared-scores-${{ runner.os }}-${{ matrix.python }}
+          path: ${{ runner.temp }}/rankprobe-movielens-case/summary.json
+          if-no-files-found: ignore
+          retention-days: 14
 
   python315-core:
     name: Python 3.15 core build/install on ${{ matrix.os }}

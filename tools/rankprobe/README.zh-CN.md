@@ -105,6 +105,8 @@ python -m rankprobe audit results.run --qrels judgments.qrels --out reports/retr
 
 发现问题后如何行动和复核，见 [案例行动与证据状态](docs/case-actions.md)：其中区分已执行的公开输入检查、尚未完成的后续实验与合成控制，便于判断下一步需要什么证据。
 
+可选的 [MovieLens 实际评分案例](examples/movielens-scores/README.md) 使用公开真实评分和两个小型 NumPy 模型，复核同一已观察候选池的比较、分数舍入与保留原分数后的恢复。数据及逐行输出留在本地；核心审计仍不运行模型，也不增加运行依赖。
+
 ## 导出已有实验
 
 提供独立实现的 ReChorus 风格 NPZ 适配器，NumPy 仅为此可选工具所需：

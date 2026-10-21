@@ -110,6 +110,8 @@ MRR and NDCG are reported with their evaluated-query counts and scope. Recall is
 
 For the next step after a finding, see [case actions and rechecks](docs/case-actions.md). It separates executed public-input checks from pending follow-up experiments and synthetic controls.
 
+The optional [fitted-score MovieLens case](examples/movielens-scores/README.md) uses actual public ratings and two small NumPy models to check shared observed-item pools, presentation rounding and recovery from retained exact scores. It keeps dataset-derived rows local and does not change the model-free core.
+
 ## Existing framework outputs
 
 Export a small ReChorus-style NPZ locally with the optional NumPy adapter:

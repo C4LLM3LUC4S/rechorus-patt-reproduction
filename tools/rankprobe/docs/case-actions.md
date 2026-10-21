@@ -1,13 +1,14 @@
 # From a report finding to a checked action
 
-Use this page to decide what a finding lets you change and what to check afterward. It connects existing walkthroughs to execution evidence; it does not introduce another evaluation protocol. Evidence reviewed on 2026-10-20 for `0.1.0a4`.
+Use this page to decide what a finding lets you change and what to check afterward. It connects existing walkthroughs to execution evidence; each case retains its own declared protocol and scope. Evidence reviewed through 2026-10-21 for `0.1.0a4`.
 
 | Case | Input evidence | Action and recheck status |
 | --- | --- | --- |
 | [TREC format selection](#trec-format-selection) | Actual archived CLE-LMD run and Round 1 qrels | Explicit-format recovery executed; original inputs preserved |
 | [Native protocol alignment](#native-protocol-alignment) | The same actual CLE-LMD input | Separate declared protocol checked against pinned native `trec_eval`; default unknown-label control preserved |
 | [Different retrieval candidate sets](#different-retrieval-candidate-sets) | Actual archived CLE-LMD and CLE-DFR runs | Diagnostic and separate two-system native follow-up checked; shared-pool reranking **not executed** |
-| [Rank-derived scores](#rank-derived-scores) | Original synthetic scores, rank-only export and planted labels | Controlled consequences checked; recovery of a real model's score export **not demonstrated** |
+| [Rank-derived scores](#rank-derived-scores) | Original synthetic scores, rank-only export and planted labels | Controlled consequences checked; historical framework-export recovery **not demonstrated in this case** |
+| [Fitted-model score export](#fitted-model-score-export) | Actual public MovieLens ratings and two newly fitted NumPy models | Same observed-item pools checked; deliberate presentation rounding and retained-score recovery executed |
 
 These are developer-run software checks. None establishes human adoption, measured human time saved or model quality. A warning disappearing is not sufficient acceptance: retain source hashes, report version, assumptions and the scope of any metric change.
 
@@ -61,3 +62,11 @@ Do not intersect the submitted results, invent absent scores or fill unknown lab
 **Conversion handoff recheck.** The pinned converter completed normally on the rank-only fixture. With a later invalid rank, it exited 1 after leaving a one-query prefix that RankProbe could still parse. A corrected source copy and fresh output retained both intended queries. Require upstream success and compare expected query-item records before auditing: RankProbe's exit-code rules apply to its own process, and parsing a prefix does not prove export completion. Both prefix and complete-copy audits preserved unknown labels and left metrics unavailable.
 
 Recovery of a real framework export and any resulting human benefit remain unverified. These controlled cases establish what to inspect and why, rather than a completed real-world repair.
+
+## Fitted-model score export
+
+The separate [MovieLens score path](../examples/movielens-scores/README.md) uses 80,000 actual training ratings and the unchanged 20,000 held-out observed pairs. Two fitted models score the same 459 query pools. The experiment explicitly maps observed ratings to binary judgments; missing ratings are not filled, and full-catalog qrels completeness is not asserted.
+
+**Finding and action.** An intentionally rounded presentation of actual factor scores increases tie groups from 6 to 3,505. NDCG@5 rises while MRR@5 falls despite unchanged fitted parameters and judgments. Inspect the score export, then use the retained exact capture to write a new faithful CSV instead of attributing that change to a model.
+
+**Recheck.** The recovered CSV is byte-identical to the exact original, all six matched deltas are zero, and source hashes stay unchanged. Independent per-query/macro/delta calculations passed 11,058 comparisons; a scores-only control keeps all 20,000 candidates unknown. This is an executed public-data software case with a deliberate loss control, not a historical user incident, a production retrieval stage, or a human benefit measurement. The fixed-commit CI records its platform scope separately.
