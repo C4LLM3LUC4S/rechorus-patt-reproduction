@@ -28,6 +28,53 @@ def write_npz(tmp_path, **arrays):
     return source
 
 
+@pytest.mark.parametrize("suffix", [".npy", ".npz"])
+def test_single_array_has_format_guidance_and_named_capture_can_retry(tmp_path, suffix):
+    source = tmp_path / ("single-array" + suffix)
+    with source.open("xb") as handle:
+        np.save(handle, np.array([[0.75, 0.25]]), allow_pickle=False)
+    original = source.read_bytes()
+    out = tmp_path / "new-export" / "scores.csv"
+    with pytest.raises(ValueError, match="NPZ.*scores.*item_id"):
+        exporter.export_npz(source, out, positive_index=0)
+    assert not out.parent.exists()
+    process = subprocess.run(
+        [sys.executable, str(SCRIPT), str(source), "--out", str(out), "--positive-index", "0"],
+        capture_output=True, text=True, encoding="utf-8", timeout=30,
+    )
+    assert process.returncode == 2 and process.stdout == ""
+    assert "NPY" in process.stderr and "numpy.savez" in process.stderr
+    assert "scores" in process.stderr and "item_id" in process.stderr
+    assert "original unchanged" in process.stderr and "Traceback" not in process.stderr
+    assert not out.parent.exists()
+    assert source.read_bytes() == original
+
+    named = tmp_path / "complete-named-capture.npz"
+    np.savez(named, scores=np.array([[0.75, 0.25]]), item_id=np.array([["positive", "other"]]))
+    complete = named.read_bytes()
+    metadata = exporter.export_npz(named, out, positive_index=0)
+    rows = read_predictions(out)
+    assert [row.score for row in rows] == [0.75, 0.25]
+    assert [row.relevance for row in rows] == [1, None]
+    assert metadata["other_candidates"] == "unknown" and not metadata["qrels_complete"]
+    assert source.read_bytes() == original and named.read_bytes() == complete
+
+
+def test_named_archive_content_is_accepted_with_npy_suffix(tmp_path):
+    source = tmp_path / "named-archive.npy"
+    with source.open("xb") as handle:
+        np.savez(handle, scores=np.array([[0.75, 0.25]]),
+                 item_id=np.array([["positive", "other"]]), query_id=np.array(["event-1"]))
+    original = source.read_bytes()
+    out = tmp_path / "scores.csv"
+    exporter.export_npz(source, out, positive_index=0, identity="source")
+    rows = read_predictions(out)
+    assert [(row.query_id, row.item_id, row.score, row.relevance) for row in rows] == [
+        ("event-1", "positive", 0.75, 1), ("event-1", "other", 0.25, None),
+    ]
+    assert source.read_bytes() == original
+
+
 def damage_npz(source, kind):
     original = source.read_bytes()
     if kind == "empty":

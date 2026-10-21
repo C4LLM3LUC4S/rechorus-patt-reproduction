@@ -15,7 +15,14 @@ import zlib
 @contextmanager
 def _read_npz(source: Path, np):
     try:
-        with np.load(source, allow_pickle=False) as archive:
+        loaded = np.load(source, allow_pickle=False)
+        if isinstance(loaded, np.ndarray):
+            raise ValueError(
+                "Expected an NPZ archive with named scores and item_id arrays; found a single "
+                "NPY array. Keep the original unchanged; capture complete aligned arrays with "
+                "numpy.savez or numpy.savez_compressed into a new file."
+            )
+        with loaded as archive:
             yield archive
     except (BadZipFile, EOFError, zlib.error) as exc:
         raise ValueError(
