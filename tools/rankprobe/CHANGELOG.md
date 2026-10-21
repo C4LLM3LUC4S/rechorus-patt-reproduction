@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Put the existing within-metric comparison rule directly above the standalone report's metric cards in English and Chinese. Run comparisons within a card stay separate from the numeric sizes of MRR versus NDCG; calculations, JSON and coverage are unchanged.
 - Complete the first synthetic TREC report's omitted-query action path with an authored complete control, fresh-output commands and population/unknown-label rechecks. Explain within-metric comparison and distinguish restored coverage from ranking changes; original inputs and core behavior are unchanged.
 - Put a compact English/Chinese comparison reading guide before the folded full metric table: submitted populations, matched-pool scope, largest-requested-cutoff MRR/NDCG, eligible counts, reference boundaries and a source-specific next step. Calculations and JSON remain unchanged.
 - Add a fixed public MovieLens fitted-score case with independent per-query checks, shared observed-item pools, a deliberate one-decimal presentation control and byte-identical recovery from retained scores. Existing development CI jobs retain aggregate evidence only; core metrics and runtime dependencies are unchanged.

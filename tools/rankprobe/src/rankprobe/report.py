@@ -325,6 +325,8 @@ def _comparison_reader(
         '<span lang="zh-CN">各自平均使用各自可算的查询；对齐后平均只比较共同候选范围。平均分更高，还不能据此认定改进。</span> '
         'Values apply only to the shown eligible queries and reference scope '
         '(<span lang="zh-CN">仅在上述查询及参考范围内有效</span>).</p>'
+        '<p>Compare runs within one metric card; MRR and NDCG values are not directly comparable. '
+        '<span lang="zh-CN">在同一张指标卡片内比较两个run；MRR与NDCG的分数不能直接比较大小。</span></p>'
         f'{preview}<p class="muted">MRR rewards an earlier first relevant result; NDCG rewards relevant results near the top. '
         '<span lang="zh-CN">MRR看首个相关结果的位置；NDCG看相关结果是否排在前面。Not available表示无法计算，不是零分。</span></p>'
         f'<p><strong>Next step / <span lang="zh-CN">下一步</span>:</strong> {action}</p></aside>'
