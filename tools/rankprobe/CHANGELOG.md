@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Add a reproducible external-qrels identity walkthrough: distinguish local pseudonyms from source tokens and legitimate outside-pool judgments, retain original files and re-export only with supported shared identities. Metric and label resolution are unchanged.
 - Record the completed NPZ export CSV's SHA-256 in the sidecar and returned metadata, with a read-only pairing recipe and fresh-export recovery for missing or mismatched fingerprints. Source-only legacy sidecars and label assumptions remain unchanged.
 - Identify single-array NPY inputs to the NPZ exporter with named-array capture guidance, including mislabeled files; retain valid content-based loading instead of rejecting by suffix.
 - Reject NPZ floating-point score dtypes wider than 64 bits before output. Actual extended-precision controls exposed artificial ties and finite-to-infinite narrowing; supported floats and exact integer serialization remain unchanged.

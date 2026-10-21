@@ -50,6 +50,8 @@ python scripts/export_rechorus.py predictions.npz --out comparison-input.csv --p
 
 This mode retains source identities. The caller must supply IDs from the same namespace and identify the same prediction context across runs; a unique user ID alone may omit changing time/history. The exporter cannot certify that assertion. Missing/invalid/duplicate event IDs fail instead of falling back to generated row names. Review retained query/item tokens before sharing, and protect exports with the same care as source data. The `user_id` array is not exported directly, but caller-supplied `query_id` tokens may themselves identify people.
 
+The same identity requirement applies when attaching independent qrels to a **single** exported run. Source-ID qrels do not follow the default local pseudonym mapping, which is not exported. A successful audit or known inline positive does not prove a qrels pair matched. Use source mode only with shared, correctly aligned original event/item IDs; keep both old files and recover into a new export. The [three-case qrels walkthrough](../examples/npz-qrels/README.md) distinguishes this remapping mistake from legitimate judged items outside the candidate pool and explains what to recheck. Neither case justifies automatic remapping, dropping judgments or filling unknowns.
+
 This is pseudonymization, not a guarantee of anonymity: scores and relationships can still identify an experiment or user activity. It also does not confer permission to redistribute a dataset or derivative prediction file.
 
 ## Output and reproducibility
