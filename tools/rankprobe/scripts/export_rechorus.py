@@ -97,6 +97,12 @@ def export_npz(
             raise ValueError("scores and item_id must have the same nonempty 2-D shape.")
         if scores.dtype.kind not in "iuf" or not np.isfinite(scores).all():
             raise ValueError("scores must contain finite real numbers.")
+        if scores.dtype.kind == "f" and scores.dtype.itemsize > 8:
+            raise ValueError(
+                "Floating-point score dtypes wider than 64 bits are unsupported by this core. "
+                "Keep the original NPZ; an explicit source conversion needs separate checks "
+                "for finite values and changed ties before a new export."
+            )
         if items.dtype.kind not in "iuUS":
             raise ValueError("item_id must contain integer or string identifiers.")
         if not 0 <= positive_index < scores.shape[1]:

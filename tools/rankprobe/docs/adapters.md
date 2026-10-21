@@ -8,9 +8,11 @@ python -m pip install -e ".[adapters]"
 
 ## Required source assumptions
 
-The NPZ must have equally shaped, nonempty 2-D `scores` and `item_id` arrays. Rows are ranking events; columns are candidates. Scores must be finite real numbers. Object arrays are not loaded (`allow_pickle=False`). An optional `user_id` array is checked for row count but never exported.
+The NPZ must have equally shaped, nonempty 2-D `scores` and `item_id` arrays. Rows are ranking events; columns are candidates. Scores must be finite integers or real floating-point arrays with dtypes of at most 64 bits. Wider floating-point dtypes are rejected before CSV or metadata output instead of silently narrowed. Object arrays are not loaded (`allow_pickle=False`). An optional `user_id` array is checked for row count but never exported.
 
 Integer score arrays are written as exact decimal integers, including signed and unsigned 64-bit values. Adjacent large integers must not become a tie through a float conversion. Float16/32/64 scores keep their values through the existing binary64 decimal representation. Neither representation can recover score precision already lost before the NPZ was saved; preserve the original archive when comparing an older export.
+
+`longdouble` varies by platform; its name or storage size alone does not establish its precision. Actual Linux controls with 16-byte storage and 64 significant bits exposed two former export failures: distinct `1.0000000000000000001` and `1.0` became tied, while a larger source-finite value became an unreadable infinite score. The same fidelity regression now requires faithful parsed scores or rejection before any output. This does not establish every extended dtype's layout. Obtain supported source scores for a new archive, or review an explicitly declared narrowing conversion separately for finite values and changed ties. A later audit cannot recover the source precision or certify that conversion.
 
 You must explicitly declare the positive column. The exporter does not infer it from a larger score or framework name. By default every other candidate remains unjudged:
 

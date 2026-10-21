@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Reject NPZ floating-point score dtypes wider than 64 bits before output. Actual extended-precision controls exposed artificial ties and finite-to-infinite narrowing; supported floats and exact integer serialization remain unchanged.
 - Handle DEFLATE decoding failures in compressed NPZ arrays as exporter input errors, including failures while loading IDs, and verify complete compressed captures and fresh-capture retries retain scores and unknown labels.
 - Report empty, truncated and bad-checksum NPZ captures as bounded exporter input errors with a fresh-capture recovery route, instead of an uncaught traceback. Sources remain unchanged and no CSV or metadata is written on these failures.
 - Preserve integer scores exactly in the optional NPZ exporter, including adjacent signed/unsigned 64-bit values that previously rounded into artificial ties. Floating-point serialization, identity and declared label assumptions are unchanged.
