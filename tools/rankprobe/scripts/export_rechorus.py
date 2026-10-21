@@ -3,10 +3,24 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import csv
 import hashlib
 import json
 from pathlib import Path
+from zipfile import BadZipFile
+
+
+@contextmanager
+def _read_npz(source: Path, np):
+    try:
+        with np.load(source, allow_pickle=False) as archive:
+            yield archive
+    except (BadZipFile, EOFError) as exc:
+        raise ValueError(
+            "NPZ archive is incomplete or damaged. Keep the original unchanged and create "
+            "a new NPZ from the complete source arrays; use a new CSV destination."
+        ) from exc
 
 
 def _source_identifier(value: object, field: str, *, integer: bool = False) -> str:
@@ -73,7 +87,7 @@ def export_npz(
     if limit_queries is not None and limit_queries < 1:
         raise ValueError("limit_queries must be positive.")
 
-    with np.load(source, allow_pickle=False) as archive:
+    with _read_npz(source, np) as archive:
         if not {"scores", "item_id"}.issubset(archive.files):
             raise ValueError("NPZ must contain scores and item_id arrays.")
         scores = archive["scores"]

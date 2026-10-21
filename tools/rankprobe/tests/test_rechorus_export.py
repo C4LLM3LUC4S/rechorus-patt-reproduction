@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from io import BytesIO
 import csv
 import importlib.util
 import json
@@ -7,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import zipfile
 
 import pytest
 
@@ -24,6 +26,91 @@ def write_npz(tmp_path, **arrays):
     source = tmp_path / "predictions.npz"
     np.savez(source, **arrays)
     return source
+
+
+def damage_npz(source, kind):
+    original = source.read_bytes()
+    if kind == "empty":
+        damaged = b""
+    elif kind == "truncated":
+        damaged = original[:-30]
+    else:
+        with zipfile.ZipFile(BytesIO(original)) as archive:
+            entry = archive.getinfo("scores.npy")
+        assert entry.compress_type == zipfile.ZIP_STORED
+        header = entry.header_offset
+        name_size = int.from_bytes(original[header + 26:header + 28], "little")
+        extra_size = int.from_bytes(original[header + 28:header + 30], "little")
+        offset = header + 30 + name_size + extra_size + entry.compress_size - 1
+        damaged = bytearray(original)
+        damaged[offset] ^= 1
+    source.write_bytes(damaged)
+    return bytes(damaged)
+
+
+@pytest.mark.parametrize("kind", ["empty", "truncated", "bad-checksum"])
+def test_unreadable_npz_rejected_before_output_and_fresh_capture_can_retry(tmp_path, kind):
+    source = write_npz(
+        tmp_path, scores=np.array([[0.9, 0.2]]), item_id=np.array([["positive", "other"]]),
+    )
+    original = source.read_bytes()
+    damaged = damage_npz(source, kind)
+    out = tmp_path / "new-export" / "scores.csv"
+    with pytest.raises(ValueError, match="NPZ archive.*new NPZ"):
+        exporter.export_npz(source, out, positive_index=0)
+    assert source.read_bytes() == damaged
+    assert not out.parent.exists()
+
+    new_capture = tmp_path / "complete-capture.npz"
+    new_capture.write_bytes(original)
+    metadata = exporter.export_npz(new_capture, out, positive_index=0)
+    rows = read_predictions(out)
+    assert [row.score for row in rows] == [0.9, 0.2]
+    assert [row.relevance for row in rows] == [1, None]
+    assert metadata["other_candidates"] == "unknown"
+    assert metadata["qrels_complete"] is False
+    assert source.read_bytes() == damaged
+    assert new_capture.read_bytes() == original
+
+
+@pytest.mark.parametrize("kind", ["empty", "truncated", "bad-checksum"])
+def test_unreadable_npz_cli_has_bounded_error_and_allows_fresh_capture(tmp_path, kind):
+    source = write_npz(
+        tmp_path, scores=np.array([[0.9, 0.2]]), item_id=np.array([["positive", "other"]]),
+    )
+    original = source.read_bytes()
+    damaged = damage_npz(source, kind)
+    out = tmp_path / "new-export" / "scores.csv"
+
+    def run(capture):
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), str(capture), "--out", str(out),
+             "--positive-index", "0"],
+            capture_output=True, text=True, encoding="utf-8", timeout=30,
+        )
+
+    failed = run(source)
+    assert failed.returncode == 2
+    assert failed.stdout == ""
+    assert "Export error: NPZ archive" in failed.stderr
+    assert "new NPZ" in failed.stderr and "original unchanged" in failed.stderr
+    assert "Traceback" not in failed.stderr
+    assert not out.parent.exists()
+    assert source.read_bytes() == damaged
+
+    new_capture = tmp_path / "complete-capture.npz"
+    new_capture.write_bytes(original)
+    retried = run(new_capture)
+    assert retried.returncode == 0, retried.stderr
+    metadata = json.loads(retried.stdout)
+    assert metadata["exported_rows"] == 2 and metadata["other_candidates"] == "unknown"
+    rows = read_predictions(out)
+    report = audit_run(rows, protocol=Protocol(cutoffs=(1,)))
+    assert report["summary"]["unknown_candidates"] == 1
+    assert report["summary"]["assumed_nonrelevant_candidates"] == 0
+    assert report["metrics"]["mrr@1"]["value"] == 1
+    assert source.read_bytes() == damaged
+    assert new_capture.read_bytes() == original
 
 
 def test_queries_are_events_not_users_and_ids_are_remapped(tmp_path):

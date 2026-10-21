@@ -52,6 +52,8 @@ This is pseudonymization, not a guarantee of anonymity: scores and relationships
 
 The exporter writes CSV and `<output>.metadata.json`. Metadata records a source SHA-256, selected query count, positive column, negative assumption, identity mode and alignment/privacy caveats. Existing outputs are refused unless `--overwrite` is explicit; neither output may replace the source archive, including through a symbolic link or hard link. The CSV and metadata must also be distinct files. No complete qrels are inferred.
 
+An empty or truncated NPZ, or a ZIP checksum failure while reading an array, is an input error: the CLI returns `2` with a recovery message, and the Python helper raises `ValueError`. These failures occur before CSV or metadata output. Keep the failed capture unchanged, recapture the complete scores and aligned IDs into a new NPZ, and retry with a new CSV destination. Confirm export success before auditing; an old CSV is not evidence that this capture succeeded. Re-exporting needs the original complete source arrays and does not reconstruct missing predictions from a damaged archive.
+
 Source archives are read only. To keep local experiments private, store exports and reports outside the repository or under an ignored directory. Public examples in this repository are synthetic. Real experiment validation should publish only reviewed aggregate observations with clear data-use permission.
 
 The official ReChorus TopK presentation CSV is a different, lossy format. The [sampled runner capture recipe](rechorus-workflow.md) shows where to create this NPZ bridge before sorting/truncation, and explains positive-column and tie assumptions. It does not recover missing target/event information from a previously saved top-k CSV.
