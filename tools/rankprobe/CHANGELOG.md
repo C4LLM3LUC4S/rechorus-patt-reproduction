@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Put a compact English/Chinese comparison reading guide before the folded full metric table: submitted populations, matched-pool scope, largest-requested-cutoff MRR/NDCG, eligible counts, reference boundaries and a source-specific next step. Calculations and JSON remain unchanged.
 - Add a fixed public MovieLens fitted-score case with independent per-query checks, shared observed-item pools, a deliberate one-decimal presentation control and byte-identical recovery from retained scores. Existing development CI jobs retain aggregate evidence only; core metrics and runtime dependencies are unchanged.
 - Add a reproducible external-qrels identity walkthrough: distinguish local pseudonyms from source tokens and legitimate outside-pool judgments, retain original files and re-export only with supported shared identities. Metric and label resolution are unchanged.
 - Record the completed NPZ export CSV's SHA-256 in the sidecar and returned metadata, with a read-only pairing recipe and fresh-export recovery for missing or mismatched fingerprints. Source-only legacy sidecars and label assumptions remain unchanged.

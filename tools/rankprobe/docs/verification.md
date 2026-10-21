@@ -1,5 +1,9 @@
 # Verification record
 
+## Comparison reading guide
+
+The HTML comparison quick view separates submitted averages from matched averages at the largest requested cutoff, retaining per-metric eligible counts, limited-scope markers and matched references. English/Chinese guidance distinguishes common-query counts from metric eligibility and routes missing queries or different candidate stages to the appropriate source check. Full requested metrics and evidence remain in native expandable sections. This changes presentation only; calculations, JSON, unknown-label policy and metric eligibility stay unchanged. Renderer regressions cover unequal query populations, unknown metrics, candidate differences, signed changes and escaped names. These checks do not establish improved human comprehension; that needs a new user review.
+
 ## Fitted public-data scores and retained capture
 
 The [MovieLens score case](../examples/movielens-scores/README.md) fits two small NumPy models on the official fixed training split and scores every held-out observed pair. The local Windows/Python 3.12.5 run passed 11,058 independent per-query/macro/delta comparisons, kept the no-qrels control unknown, and restored a deliberately rounded presentation from an unchanged exact capture. The source archive, original rows and row-level reports stay local; only reviewed aggregate observations are shared. Same-pool and score-recovery assertions concern this observed-item experiment, not full-catalog retrieval, native-framework parity or historical lost-score reconstruction.

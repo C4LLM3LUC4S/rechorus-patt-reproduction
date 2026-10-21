@@ -44,7 +44,9 @@ macOS / Linux:
 .venv/bin/python -m rankprobe compare --run baseline=examples/trec/baseline.run --run reordered=examples/trec/reordered.run --qrels examples/trec/judgments.qrels --cutoffs 1,2 --out reports/first-try
 ```
 
-Open `reports/first-try/report.html` and start at **Comparison results**. All demonstration records are invented. Baseline MRR@2 is 0.25 and reordered MRR@2 is 0.5, but both are 0.5 on the matched, metric-eligible query, so the matched delta is zero. The table shows the sample count and scope beside each value. Follow the query coverage finding's next step and expand the metric coverage to inspect excluded queries. [The walkthrough](../examples/trec/README.md) explains every expected value.
+Open `reports/first-try/report.html` and start at **Comparison results**. Its English/Chinese reading guide puts submitted-query counts and a next step before the numbers. The quick view shows MRR/NDCG at the **largest requested cutoff** (here 2), with each average's eligible count, limited-scope marker and matched reference. Expand **Full metric table and coverage / 完整指标与范围** for every requested cutoff, Recall availability, statuses, reference pools and exclusion details. A missing value is not zero.
+
+All demonstration records are invented. Baseline MRR@2 is 0.25 and reordered MRR@2 is 0.5, but both are 0.5 on the matched, metric-eligible query, so the matched delta is zero. There are two structurally matched queries but only one is eligible for these metrics. Follow the query coverage finding's next step and expand metric coverage to inspect excluded queries. [The walkthrough](../examples/trec/README.md) explains every expected value.
 
 If you only have one export, use `audit`; use `compare` when two runs should represent the same evaluation task.
 

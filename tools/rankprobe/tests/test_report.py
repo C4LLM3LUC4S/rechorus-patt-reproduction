@@ -87,6 +87,73 @@ def sample_report():
 
 
 class ReportTests(unittest.TestCase):
+    def test_first_use_preview_separates_averages_and_eligible_queries(self):
+        rows = [
+            Row("q1", "a", 2, 0), Row("q1", "b", 1, 1),
+            Row("q2", "c", 2, 0), Row("q2", "d", 1, 0),
+            Row("q3", "e", 2), Row("q3", "f", 1, 1),
+        ]
+        report = compare_runs({"baseline": rows, "reordered": rows[:2] + rows[4:]}, Protocol(cutoffs=(1, 2)))
+        before = json.dumps(report, sort_keys=True)
+        result = render_html(report)
+        preview = result.split('class="comparison-reader"', 1)[1].split('</aside>', 1)[0]
+        self.assertIn("先核对比较范围", preview)
+        self.assertIn("baseline: 3", preview)
+        self.assertIn("reordered: 2", preview)
+        self.assertIn("same candidate pools: 2", preview)
+        self.assertIn("not the number eligible for every metric", preview)
+        self.assertIn("Restore omitted predictions if accidental", preview)
+        self.assertIn("mrr@2", preview)
+        self.assertNotIn("mrr@1", preview)
+        self.assertIn("0.25", preview)
+        self.assertIn("+0", preview)
+        self.assertIn("eligible queries: 1", preview)
+        self.assertIn("supplied candidate pool / 当前候选池", preview)
+        self.assertIn("范围有限", preview)
+        self.assertIn("仅在上述查询及参考范围内有效", preview)
+        self.assertIn("最大请求截断位置", preview)
+        self.assertIn("MRR", preview)
+        self.assertIn("NDCG", preview)
+        self.assertLess(result.index('class="comparison-reader"'), result.index('Full metric table and coverage'))
+        self.assertNotIn('<details open', result)
+        self.assertEqual(json.dumps(report, sort_keys=True), before)
+
+    def test_preview_does_not_invent_missing_metrics_or_call_unknown_zero(self):
+        report = compare_runs(
+            {"left": [Row("q", "a", 2), Row("q", "b", 1)],
+             "right": [Row("q", "a", 3), Row("q", "b", 2)]},
+            Protocol(cutoffs=(1, 2)),
+        )
+        result = render_html(report)
+        preview = result.split('class="comparison-reader"', 1)[1].split('</aside>', 1)[0]
+        self.assertIn("Not available", preview)
+        self.assertIn("无法计算，不是零分", preview)
+        self.assertIn("eligible queries: 0", preview)
+        self.assertNotIn("Restore omitted predictions if accidental", preview)
+        self.assertNotIn("improved", preview)
+        self.assertNotIn("+0", preview)
+
+    def test_preview_preserves_delta_sign_and_candidate_stage_action(self):
+        runs = {
+            '<img src=x onerror=alert(1)>': [Row("q", "a", 3, 0), Row("q", "b", 2, 1), Row("q", "c", 1, 0)],
+            "better": [Row("q", "b", 3, 1), Row("q", "a", 2, 0), Row("q", "c", 1, 0)],
+            "worse": [Row("q", "a", 3, 0), Row("q", "c", 2, 0), Row("q", "b", 1, 1)],
+        }
+        result = render_html(compare_runs(runs, Protocol(cutoffs=(2,))))
+        self.assertIn("+0.5", result)
+        self.assertIn("-0.5", result)
+        self.assertNotIn("<img ", result)
+        self.assertIn("&lt;img src=x onerror=alert(1)&gt;", result)
+        changed = compare_runs(
+            {"left": [Row("q", "a", 2, 1), Row("q", "b", 1, 0)],
+             "right": [Row("q", "a", 2, 1), Row("q", "c", 1, 0)]},
+            Protocol(cutoffs=(2,)),
+        )
+        preview = render_html(changed).split('class="comparison-reader"', 1)[1].split('</aside>', 1)[0]
+        self.assertIn("actual candidate stage", preview)
+        self.assertIn("Not available", preview)
+        self.assertNotIn("+0", preview)
+
     def test_nested_candidate_evidence_identifies_query_before_expanding(self):
         query = 'q<script>alert(1)</script>&'
         runs = {
