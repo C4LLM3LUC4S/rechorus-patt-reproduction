@@ -1,5 +1,11 @@
 # Verification record
 
+## First-report missing-query recovery
+
+The original invented TREC example now includes an explicitly authored complete control and a [recovery command](../examples/trec/README.md#restore-the-omitted-query-and-recheck). The actual CLI recheck restores the supplied q2 records without changing the shared q1/q3 records, judgments, tie policy or missing-label policy. Both runs submit three queries, with two metric-eligible queries at k=2; MRR is 0.25, linear NDCG is `1 / (2 * log2(3))`, and matched deltas are zero. The original report had only q1 in its matched metric average; changing that average's population is not a ranking regression.
+
+The query-coverage finding disappears while one unknown and zero assumed candidates remain in each run; q3 stays excluded, q4 remains qrels-only and Recall stays unavailable. Original input/report hashes are preserved. This verifies a controlled example's action/recheck instructions, not missing-score reconstruction for an actual model, human understanding or time saved. Core behavior is unchanged.
+
 ## Comparison reading guide
 
 The HTML comparison quick view separates submitted averages from matched averages at the largest requested cutoff, retaining per-metric eligible counts, limited-scope markers and matched references. English/Chinese guidance distinguishes common-query counts from metric eligibility and routes missing queries or different candidate stages to the appropriate source check. Full requested metrics and evidence remain in native expandable sections. This changes presentation only; calculations, JSON, unknown-label policy and metric eligibility stay unchanged. Renderer regressions cover unequal query populations, unknown metrics, candidate differences, signed changes and escaped names. These checks do not establish improved human comprehension; that needs a new user review.

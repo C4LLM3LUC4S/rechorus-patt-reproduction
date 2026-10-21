@@ -39,6 +39,39 @@ For q1, ascending IDs put the nonrelevant doc_a first, so reciprocal rank is 1/2
 
 For q3, an unknown judgment occurs before the first known relevant item, excluding that query from MRR@2; the unknown candidate label also excludes it from NDCG. The absent q4 is reported but not inserted into either average. These are partial-coverage metrics, not full-query benchmark results. The matched-pool section includes q1/q3 structurally, but only q1 is metric-eligible under this protocol.
 
+## Restore the omitted query and recheck
+
+In the report's **Findings** section, find `query_coverage_mismatch` and expand **Inspect evidence**. Its `left_only` list contains `q2`: baseline has predictions for that query, while reordered does not. This identifies a coverage difference; it does not establish whether the omission was accidental.
+
+For this invented example, [reordered-complete.run](reordered-complete.run) explicitly supplies the two q2 records with scores 0.9 and 0.8. Its shared q1/q3 records, scores and order are unchanged from `reordered.run`. It is an authored complete control, not evidence that lost predictions from a real model were reconstructed. Do not use another model's baseline predictions to fill gaps in your own run, infer scores from judgments, or substitute zeros. Recover your run from its own retained score-bearing source; if none exists, record the missing evidence.
+
+Keep the first report and all original files. From the package root, compare the complete control into a fresh directory with the same protocol:
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m rankprobe compare --run baseline=examples/trec/baseline.run --run restored=examples/trec/reordered-complete.run --qrels examples/trec/judgments.qrels --cutoffs 1,2 --out reports/trec-query-restored
+```
+
+macOS / Linux:
+
+```sh
+.venv/bin/python -m rankprobe compare --run baseline=examples/trec/baseline.run --run restored=examples/trec/reordered-complete.run --qrels examples/trec/judgments.qrels --cutoffs 1,2 --out reports/trec-query-restored
+```
+
+Compare run names **within the same metric**. The MRR and NDCG cards use different scoring rules; a higher number in one card than in the other does not indicate a better run.
+
+| Check | Expected recheck |
+| --- | --- |
+| Submitted queries | baseline=3, restored=3; `query_coverage_mismatch` is absent |
+| Structurally matched queries | 3, but only q1/q2 are eligible for MRR@2 and NDCG@2 |
+| MRR@2, submitted and matched | both runs=0.25, matched delta=0 |
+| NDCG@2, submitted and matched | both runs≈0.315464876786, matched delta=0 |
+| Unknown and assumed labels | q3's doc_x remains unknown; one unknown and zero assumed candidates in each run |
+| Remaining limits | q4 still has no predictions in either run; Recall remains unavailable and warnings remain |
+
+The restored run's submitted MRR@2 falls from 0.5 to 0.25 because q2 now participates: `(0.5 + 0) / 2 = 0.25`. The matched average also changes population from q1 alone to q1/q2; do not interpret the change between the two reports as a ranking regression. q3 stays excluded rather than becoming zero, and no labels or tie rules changed. Removing the coverage warning confirms this specific coverage repair, not model quality or a fully validated evaluation. For an actual export, also verify intended query IDs, candidates, source fingerprints and unchanged assumptions before accepting the repair.
+
 ## Isolate the tie convention
 
 ```sh

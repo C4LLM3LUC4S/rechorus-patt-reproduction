@@ -4,6 +4,7 @@ Use this page to decide what a finding lets you change and what to check afterwa
 
 | Case | Input evidence | Action and recheck status |
 | --- | --- | --- |
+| [Missing query](#missing-query-synthetic-control) | Original invented TREC runs and judgments | Explicit complete control restores the supplied q2 records; coverage, metric populations and remaining unknowns rechecked |
 | [TREC format selection](#trec-format-selection) | Actual archived CLE-LMD run and Round 1 qrels | Explicit-format recovery executed; original inputs preserved |
 | [Native protocol alignment](#native-protocol-alignment) | The same actual CLE-LMD input | Separate declared protocol checked against pinned native `trec_eval`; default unknown-label control preserved |
 | [Different retrieval candidate sets](#different-retrieval-candidate-sets) | Actual archived CLE-LMD and CLE-DFR runs | Diagnostic and separate two-system native follow-up checked; shared-pool reranking **not executed** |
@@ -11,6 +12,14 @@ Use this page to decide what a finding lets you change and what to check afterwa
 | [Fitted-model score export](#fitted-model-score-export) | Actual public MovieLens ratings and two newly fitted NumPy models | Same observed-item pools checked; deliberate presentation rounding and retained-score recovery executed |
 
 These are developer-run software checks. None establishes human adoption, measured human time saved or model quality. A warning disappearing is not sufficient acceptance: retain source hashes, report version, assumptions and the scope of any metric change.
+
+## Missing query: synthetic control
+
+The [first TREC report](../examples/trec/README.md) gives reordered a higher submitted average after it omits q2. The `query_coverage_mismatch` evidence identifies `q2` in `left_only`. That alone does not establish an export error: check the intended query universe first.
+
+The [recovery step](../examples/trec/README.md#restore-the-omitted-query-and-recheck) uses an explicitly authored complete control, keeps the original inputs/report, and supplies a new comparison command under the unchanged protocol. Both runs now submit three queries, of which q1/q2 are metric-eligible. MRR@2 is 0.25 on each side, NDCG@2 is approximately 0.315464876786, and matched deltas are zero. The coverage mismatch disappears; q3's unknown label, absent q4 and unavailable Recall remain. The lower mean reflects restored coverage, not a measured ranking regression.
+
+This is a developer-executed invented recovery control, not recovery of an actual model export or human adoption. With real data, obtain predictions from that run's own retained source. Do not borrow the baseline's scores, infer them from labels or fill gaps with zeros. If the original evidence is unavailable, record the limitation instead of manufacturing a repair.
 
 ## TREC format selection
 

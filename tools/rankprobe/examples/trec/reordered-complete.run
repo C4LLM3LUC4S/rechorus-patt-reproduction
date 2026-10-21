@@ -1,0 +1,8 @@
+# Original synthetic complete control: q2 scores are explicitly supplied for this demo.
+# These records are not reconstructed predictions from a real model.
+q1 Q0 doc_a 1 1.0 reordered
+q1 Q0 doc_b 2 1.0 reordered
+q2 Q0 doc_e 1 0.9 reordered
+q2 Q0 doc_f 2 0.8 reordered
+q3 Q0 doc_x 1 0.8 reordered
+q3 Q0 doc_y 2 0.5 reordered
