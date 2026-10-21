@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Preserve integer scores exactly in the optional NPZ exporter, including adjacent signed/unsigned 64-bit values that previously rounded into artificial ties. Floating-point serialization, identity and declared label assumptions are unchanged.
 - Start the documented MTEB audit only after a successful conversion, so an existing destination or invalid source cannot fall through to auditing a stale CSV. Preserve failed outputs and use a fresh destination for recovery.
 - Document an executed fixed-source conversion failure/retry: a failed producer can leave a parseable prefix. Require the producer's own success status and expected query-item coverage before auditing, while preserving unknown labels and score-provenance limits.
 - Explain the reranking versus complete-retrieval follow-up directly in candidate-set warning actions, without encouraging candidate intersections, invented scores or judgment changes to force matching. Metrics, JSON findings and protocol selection are unchanged.

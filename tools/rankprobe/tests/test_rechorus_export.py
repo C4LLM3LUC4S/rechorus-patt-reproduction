@@ -67,6 +67,84 @@ def test_explicit_negative_assumption_and_limit(tmp_path):
     assert metadata["exported_queries"] == 1
 
 
+@pytest.mark.parametrize("identity", ["local", "source"])
+@pytest.mark.parametrize("dtype,values", [
+    (np.int64, [9007199254740993, 9007199254740992]),
+    (np.int64, [-9007199254740992, -9007199254740993]),
+    (np.int64, [9223372036854775807, 9223372036854775806]),
+    (np.uint64, [9223372036854775809, 9223372036854775808]),
+    (np.uint64, [18446744073709551615, 18446744073709551614]),
+])
+def test_integer_scores_preserve_order_without_creating_ties(tmp_path, identity, dtype, values):
+    source = write_npz(
+        tmp_path, scores=np.array([values], dtype=dtype),
+        item_id=np.array([["z-positive", "a-other"]]), query_id=np.array(["event-1"]),
+    )
+    before = source.read_bytes()
+    out = tmp_path / "export.csv"
+    metadata = exporter.export_npz(source, out, positive_index=0, identity=identity)
+    with out.open(encoding="utf-8", newline="") as handle:
+        exported = list(csv.DictReader(handle))
+    assert [row["score"] for row in exported] == [str(value) for value in values]
+    rows = read_predictions(out)
+    assert [row.score for row in rows] == values
+    assert all(type(row.score) is int for row in rows)
+    assert [row.relevance for row in rows] == [1, None]
+    report = audit_run(rows, protocol=Protocol(cutoffs=(1, 2)))
+    assert report["tie_analysis"]["tie_groups"] == 0
+    assert report["metrics"]["mrr@1"]["value"] == 1
+    assert report["metrics"]["mrr@1"]["evaluated_queries"] == 1
+    assert report["summary"]["unknown_candidates"] == 1
+    assert report["summary"]["assumed_nonrelevant_candidates"] == 0
+    assert metadata["other_candidates"] == "unknown"
+    assert metadata["qrels_complete"] is False
+    assert source.read_bytes() == before
+
+
+@pytest.mark.parametrize("dtype", [np.float16, np.float32, np.float64])
+def test_adjacent_float_scores_keep_their_values_and_order(tmp_path, dtype):
+    values = np.array([[np.nextafter(dtype(0.5), dtype(1)), dtype(0.5)]], dtype=dtype)
+    source = write_npz(tmp_path, scores=values, item_id=np.array([["z-positive", "a-other"]]))
+    before = source.read_bytes()
+    out = tmp_path / "export.csv"
+    exporter.export_npz(source, out, positive_index=0)
+    rows = read_predictions(out)
+    assert [row.score for row in rows] == values[0].tolist()
+    assert rows[0].score > rows[1].score
+    assert source.read_bytes() == before
+
+
+def test_large_integer_scores_survive_export_and_audit_commands(tmp_path):
+    values = [18446744073709551615, 18446744073709551614]
+    source = write_npz(
+        tmp_path, scores=np.array([values], dtype=np.uint64),
+        item_id=np.array([["z-positive", "a-other"]]), query_id=np.array(["event-1"]),
+    )
+    before = source.read_bytes()
+    out = tmp_path / "export.csv"
+    exported = subprocess.run(
+        [sys.executable, str(SCRIPT), str(source), "--out", str(out),
+         "--positive-index", "0", "--identity", "source"],
+        capture_output=True, text=True, encoding="utf-8", timeout=30,
+    )
+    assert exported.returncode == 0, exported.stderr
+    assert [row.score for row in read_predictions(out)] == values
+    report_dir = tmp_path / "report"
+    audited = subprocess.run(
+        [sys.executable, "-m", "rankprobe", "audit", str(out), "--cutoffs", "1,2",
+         "--out", str(report_dir)],
+        capture_output=True, text=True, encoding="utf-8", timeout=30,
+    )
+    assert audited.returncode == 0, audited.stderr
+    report = json.loads((report_dir / "report.json").read_text(encoding="utf-8"))
+    assert (report_dir / "report.html").is_file()
+    assert report["tie_analysis"]["tie_groups"] == 0
+    assert report["metrics"]["mrr@1"]["value"] == 1
+    assert report["summary"]["unknown_candidates"] == 1
+    assert report["summary"]["assumed_nonrelevant_candidates"] == 0
+    assert source.read_bytes() == before
+
+
 @pytest.mark.parametrize(
     "scores,items",
     [

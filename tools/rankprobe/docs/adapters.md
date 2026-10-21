@@ -10,6 +10,8 @@ python -m pip install -e ".[adapters]"
 
 The NPZ must have equally shaped, nonempty 2-D `scores` and `item_id` arrays. Rows are ranking events; columns are candidates. Scores must be finite real numbers. Object arrays are not loaded (`allow_pickle=False`). An optional `user_id` array is checked for row count but never exported.
 
+Integer score arrays are written as exact decimal integers, including signed and unsigned 64-bit values. Adjacent large integers must not become a tie through a float conversion. Float16/32/64 scores keep their values through the existing binary64 decimal representation. Neither representation can recover score precision already lost before the NPZ was saved; preserve the original archive when comparing an older export.
+
 You must explicitly declare the positive column. The exporter does not infer it from a larger score or framework name. By default every other candidate remains unjudged:
 
 ```sh

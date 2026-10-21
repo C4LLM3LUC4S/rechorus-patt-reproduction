@@ -128,7 +128,7 @@ def export_npz(
                         query_ids[query_number] if query_ids is not None
                         else f"query_{query_number + 1:06d}",
                         item if identity == "source" else item_mapping[item],
-                        format(float(score), ".17g"),
+                        str(int(score)) if scores.dtype.kind in "iu" else format(float(score), ".17g"),
                         relevance,
                     )
                 )
