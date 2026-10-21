@@ -9,6 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 from zipfile import BadZipFile
+import zlib
 
 
 @contextmanager
@@ -16,7 +17,7 @@ def _read_npz(source: Path, np):
     try:
         with np.load(source, allow_pickle=False) as archive:
             yield archive
-    except (BadZipFile, EOFError) as exc:
+    except (BadZipFile, EOFError, zlib.error) as exc:
         raise ValueError(
             "NPZ archive is incomplete or damaged. Keep the original unchanged and create "
             "a new NPZ from the complete source arrays; use a new CSV destination."

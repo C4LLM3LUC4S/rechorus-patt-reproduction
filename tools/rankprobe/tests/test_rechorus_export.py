@@ -48,6 +48,88 @@ def damage_npz(source, kind):
     return bytes(damaged)
 
 
+@pytest.mark.parametrize("values,dtype", [
+    ([9007199254740993, 9007199254740992], np.int64),
+    ([0.625, 0.125], np.float64),
+])
+def test_complete_compressed_npz_preserves_scores_ids_and_unknown_labels(tmp_path, values, dtype):
+    source = tmp_path / "compressed-capture.npz"
+    np.savez_compressed(
+        source, scores=np.array([values], dtype=dtype),
+        item_id=np.array([["z-positive", "a-other"]]), query_id=np.array(["event-1"]),
+    )
+    original = source.read_bytes()
+    out = tmp_path / "scores.csv"
+    metadata = exporter.export_npz(source, out, positive_index=0, identity="source")
+    rows = read_predictions(out)
+    assert [(row.query_id, row.item_id) for row in rows] == [
+        ("event-1", "z-positive"), ("event-1", "a-other"),
+    ]
+    assert [row.score for row in rows] == values
+    assert [row.relevance for row in rows] == [1, None]
+    report = audit_run(rows, protocol=Protocol(cutoffs=(1,)))
+    assert report["tie_analysis"]["tie_groups"] == 0
+    assert report["metrics"]["mrr@1"]["value"] == 1
+    assert report["summary"]["unknown_candidates"] == 1
+    assert report["summary"]["assumed_nonrelevant_candidates"] == 0
+    assert metadata["qrels_complete"] is False
+    assert source.read_bytes() == original
+
+
+@pytest.mark.parametrize("member", ["scores.npy", "item_id.npy", "query_id.npy"])
+def test_bad_deflate_npz_has_input_error_and_allows_fresh_capture(tmp_path, member):
+    source = tmp_path / "damaged-capture.npz"
+    values = [9007199254740993, 9007199254740992]
+    np.savez_compressed(
+        source, scores=np.array([values], dtype=np.int64),
+        item_id=np.array([["z-positive", "a-other"]]), query_id=np.array(["event-1"]),
+    )
+    complete = source.read_bytes()
+    with zipfile.ZipFile(source) as archive:
+        entry = archive.getinfo(member)
+    assert entry.compress_type == zipfile.ZIP_DEFLATED
+    header = entry.header_offset
+    name_size = int.from_bytes(complete[header + 26:header + 28], "little")
+    extra_size = int.from_bytes(complete[header + 28:header + 30], "little")
+    offset = header + 30 + name_size + extra_size
+    damaged = bytearray(complete)
+    damaged[offset] = (damaged[offset] & 0xf8) | 0x07  # Reserved DEFLATE block type.
+    source.write_bytes(damaged)
+    out = tmp_path / "new-export" / "scores.csv"
+    with pytest.raises(ValueError, match="NPZ archive.*new NPZ"):
+        exporter.export_npz(source, out, positive_index=0, identity="source")
+    assert source.read_bytes() == damaged
+    assert not out.parent.exists()
+
+    def run(capture):
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), str(capture), "--out", str(out),
+             "--positive-index", "0", "--identity", "source"],
+            capture_output=True, text=True, encoding="utf-8", timeout=30,
+        )
+
+    failed = run(source)
+    assert failed.returncode == 2
+    assert failed.stdout == ""
+    assert "Export error: NPZ archive" in failed.stderr
+    assert "original unchanged" in failed.stderr and "new NPZ" in failed.stderr
+    assert "Traceback" not in failed.stderr
+    assert not out.parent.exists()
+    new_source = tmp_path / "complete-new-capture.npz"
+    new_source.write_bytes(complete)
+    retried = run(new_source)
+    assert retried.returncode == 0, retried.stderr
+    assert json.loads(retried.stdout)["other_candidates"] == "unknown"
+    rows = read_predictions(out)
+    assert [row.score for row in rows] == values
+    assert [(row.query_id, row.item_id) for row in rows] == [
+        ("event-1", "z-positive"), ("event-1", "a-other"),
+    ]
+    assert [row.relevance for row in rows] == [1, None]
+    assert source.read_bytes() == damaged
+    assert new_source.read_bytes() == complete
+
+
 @pytest.mark.parametrize("kind", ["empty", "truncated", "bad-checksum"])
 def test_unreadable_npz_rejected_before_output_and_fresh_capture_can_retry(tmp_path, kind):
     source = write_npz(
