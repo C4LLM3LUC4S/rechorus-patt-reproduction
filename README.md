@@ -1,29 +1,3 @@
-# RankProbe — exported ranking diagnostics
-
-**Community distribution / 社区发行：`0.1.0a4` (alpha).**
-
-Inspect recommendation/retrieval score ties, duplicates, changed evaluation pools
-and metric coverage. Local HTML/JSON reports; Python 3.10+; no core runtime
-dependencies, model, API key or cloud account required.
-
-检查推荐与检索评测中的同分、重复候选、集合变化和指标覆盖范围，生成本地报告。
-
-- **[Download the complete offline bundle / 下载完整离线包](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/releases/download/v0.1.0a4/RankProbe-0.1.0a4.zip)**
-- [Versioned release and checksums / 发行说明与校验](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/releases/tag/v0.1.0a4)
-- [RankProbe source and English guide](tools/rankprobe/README.md) · [中文说明](tools/rankprobe/README.zh-CN.md)
-- [First report](tools/rankprobe/docs/try-it.md) · [Metric contract](tools/rankprobe/docs/metrics.md) · [Limitations](tools/rankprobe/docs/limitations.md)
-
-Extract the curated ZIP and open `START_HERE.md`. It contains RankProbe source,
-examples, wheel, source distribution and an integrity manifest. The original
-course reproduction below is separate; you do not need its GPU stack to use
-RankProbe. [RankProbe's MIT license](tools/rankprobe/LICENSE) applies to that
-package; it does not relicense the original coursework or upstream materials.
-
-完整解压发行包后打开 `START_HERE.md`，无需先做实验。当前是可供社区使用的 alpha；
-缺失标签保持未知，工具不认证模型质量，也不宣称已证实普遍节时或实际采用。
-
----
-
 # ReChorus 中的概率注意力序列推荐
 
 实现 KDD 2024 论文 **Probabilistic Attention for Sequential Recommendation** 的基础 PAtt₂，并比较 SASRec、GRU4Rec 和长度校准变体 LC-PAtt₂。本仓库不是官方实现，不包含 PAtt₃ 和 DPAtt。
@@ -127,3 +101,10 @@ ReChorus：https://github.com/THUwangcy/ReChorus ，MIT，固定提交 `c164ec43
 作者参考代码：https://github.com/l-lyl/PAtt ，GPL-3.0，核查提交 `cefe8b639f9a03c7c4e4da515046909079b472a3`，不随本仓库打包。
 
 不重新授权上游代码或数据。新增文件尚未另行授予开源许可，不将全部内容笼统标记MIT。数据使用须遵守原始来源条款。
+
+
+## 独立开源工具 / Independent tools
+
+RankProbe 已迁入独立公开仓库：[排名评测核查 / Ranking evaluation diagnostics](https://github.com/C4LLM3LUC4S/rankprobe)。本仓库保留课程源码、结果及历史版本；原 v0.1.0a4 发行资产保持原字节与下载地址。
+
+SparsiLoop 是独立的[事件触发控制实验室 / Event-triggered control lab](https://github.com/C4LLM3LUC4S/sparsiloop)，不属于本课程作业。
