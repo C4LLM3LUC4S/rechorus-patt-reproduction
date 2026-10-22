@@ -2,6 +2,8 @@
 
 This is a plan, not a list of completed outcomes. An installable package and correct synthetic examples are necessary, but they do not prove users need it.
 
+The bounded [initial engineering delivery](initial-delivery.md) is complete. Independent use is a separate practical-value gate, not a reason to require an experiment from someone who does not currently have one. Such readers may use the included walkthrough for onboarding feedback, without that practice being counted as real-work adoption.
+
 ## Gate 1: Reproducible local behavior
 
 - Install a built wheel into a fresh environment and run the bundled demo outside the source directory.

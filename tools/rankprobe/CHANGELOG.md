@@ -11,6 +11,7 @@
 
 ## Unreleased — installation, explicit input conversion and reference checks
 
+- Mark the bounded alpha-4 engineering scope complete and enter maintenance. Consolidate delivery/validation boundaries and explain that no active experiment is required for the included walkthrough; optional judgments, public examples and real-work adoption remain distinct.
 - Expose a separate MovieLens retained-score recovery action in the source-checkout checker. Re-export the exact factor vector without downloading, refitting or reading labels, then follow the documented file-identity and same-protocol recheck; this is a bounded case helper, not a generic score reconstruction tool.
 - Put the existing within-metric comparison rule directly above the standalone report's metric cards in English and Chinese. Run comparisons within a card stay separate from the numeric sizes of MRR versus NDCG; calculations, JSON and coverage are unchanged.
 - Complete the first synthetic TREC report's omitted-query action path with an authored complete control, fresh-output commands and population/unknown-label rechecks. Explain within-metric comparison and distinguish restored coverage from ranking changes; original inputs and core behavior are unchanged.

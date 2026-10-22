@@ -1,5 +1,7 @@
 # RankProbe
 
+**工程首版已完成，进入维护阶段。** 当前版本仍是 `0.1.0a4` alpha。已交付范围、验证边界和维护规则见 [首版交付说明](docs/initial-delivery.md)；独立采用与实际收益继续作为后续验证事项。
+
 首个 alpha 暂放在现有复现仓库的独立目录与分支。试用时可分享直达 [RankProbe 项目页](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/tree/feature/rankprobe-alpha/tools/rankprobe)和[首次报告指南](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/blob/feature/rankprobe-alpha/tools/rankprobe/docs/try-it.md)的链接。没有 Git 时，可[下载源码 ZIP](https://codeload.github.com/C4LLM3LUC4S/rechorus-patt-reproduction/zip/refs/heads/feature/rankprobe-alpha)，解压，在解压后的仓库文件夹打开终端，再运行 `cd tools/rankprobe`。
 
 Windows 建议选择较短的解压路径；如果创建环境时 pip/ensurepip 提示路径过长，请换一个较短的文件夹重新开始。
@@ -13,7 +15,7 @@ cd rechorus-patt-reproduction/tools/rankprobe
 
 **检查推荐与检索指标是否受到同分排序、重复候选和评测集合变化的影响。**
 
-RankProbe 在本地读取候选分数及相关性标签，生成 HTML 和 JSON 报告，解释发现、影响范围与评测假设。无需重新训练模型、云账户或 API 密钥；核心只依赖 Python 标准库。
+RankProbe 在本地读取候选分数和可选的相关性标签，生成 HTML 和 JSON 报告，解释发现、影响范围与评测假设。无需重新训练模型、云账户或 API 密钥；核心只依赖 Python 标准库。
 
 [English](README.md) · [输入格式](docs/input-format.md) · [指标定义](docs/metrics.md) · [首次本地报告](docs/try-it.md) · [能力边界](docs/limitations.md)
 
@@ -123,7 +125,9 @@ RankProbe 不保证与任意框架输出相同。默认同分规则是物品 ID 
 
 ## 当前阶段
 
-这是早期 `0.1.0a4` 实现，已执行的检查见 [验证记录](docs/verification.md)，尚无外部采用、收入或论文成果的证据。下一步按 [试用计划](docs/validation-plan.md) 和 [路线图](docs/roadmap.md) 验证陌生用户能否独立使用并获得实际帮助，再决定扩展方向。CI 覆盖多个 Python 版本及 Windows/Ubuntu，是否实际通过需查看对应提交的运行记录。
+`0.1.0a4` 的 [工程首版范围](docs/initial-delivery.md) 已收口，后续优先处理可复现错误、安装或导出障碍、文档歧义及依赖兼容性。当前不要求使用者为了试用而新做实验：没有自己的预测文件时，使用随源码提供的 demo 和首次报告示例即可；有合法导出后再按现有适配说明接入。
+
+已执行的检查见 [验证记录](docs/verification.md)，尚无独立外部采用、收入或论文成果的证据。按 [试用计划](docs/validation-plan.md) 和 [路线图](docs/roadmap.md) 验证实际帮助，再决定是否扩展。CI 覆盖多个 Python 版本及 Windows/Ubuntu，是否实际通过需查看对应提交的运行记录。
 
 ```sh
 python -m pip install -e ".[dev,adapters]"

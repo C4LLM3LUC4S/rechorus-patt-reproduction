@@ -1,5 +1,11 @@
 # Verification record
 
+## Initial engineering delivery
+
+The [initial delivery record](initial-delivery.md) defines the completed alpha-4 scope and the maintenance entry conditions. This consolidation changes project status and onboarding instructions; the package version, metric implementation, CLI, adapters, report rendering and runtime dependencies remain unchanged. The existing example path does not require an active personal experiment, and absence of judgments still means unknown values rather than zeros.
+
+Distribution acceptance uses the canonical source snapshot, not a working environment or a mutable earlier candidate. Build the wheel and source archive, check file/dependency integrity, then run `scripts/check_wheel_install.py` for isolated offline entrypoints, errors, retries and report preservation. A separate local bundle can include those distributions, original examples and source helpers; exclude private records, environments, raw datasets and row-level third-party outputs. Record its manifest/hash and verify the final extracted copy. Inspect CI for the exact uploaded commit; historical green runs do not substitute for it.
+
 ## Separate retained-score action
 
 The MovieLens checker now exposes `--recover` for its own record-indexed NPZ capture. The [manual workflow](../examples/movielens-scores/README.md#inspect-recover-and-recheck-without-refitting) verifies capture identity against the original summary, performs the action without fitting or downloading, and checks both file identity and the original evaluation protocol afterward. Structural validation cannot authenticate model provenance.

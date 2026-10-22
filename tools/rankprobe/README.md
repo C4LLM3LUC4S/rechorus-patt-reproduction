@@ -1,8 +1,10 @@
 # RankProbe
 
+**Initial implementation complete — `0.1.0a4` alpha, in maintenance.** See the [delivery scope and maintenance policy](docs/initial-delivery.md). Independent adoption and measured human benefit remain future validation work.
+
 **Find out when a ranking score depends on ties, duplicated candidates, or a changed evaluation pool.**
 
-RankProbe is a local, model-free audit tool for recommendation and retrieval experiments. Give it candidate scores and relevance judgments; it produces a readable HTML report and machine-readable JSON with examples, metric assumptions, and sensitivity results. No model inference, cloud account, or API key is needed. The core uses the Python standard library.
+RankProbe is a local, model-free audit tool for recommendation and retrieval experiments. Give it candidate scores and optional relevance judgments; it produces a readable HTML report and machine-readable JSON with examples, metric assumptions, and sensitivity results. No model inference, cloud account, or API key is needed. The core uses the Python standard library.
 
 For a trial, share the [RankProbe package page](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/tree/feature/rankprobe-alpha/tools/rankprobe) and [first-report walkthrough](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/blob/feature/rankprobe-alpha/tools/rankprobe/docs/try-it.md). Both links open the alpha's own directory inside the reproduction repository.
 
@@ -50,7 +52,11 @@ python3 -m venv .venv
 .venv/bin/python -m rankprobe demo --out reports/demo
 ```
 
-Open `reports/demo/report.html` offline. See the [complete first-use walkthrough](docs/try-it.md) for a comparison with expected values and framework environment guidance. In the remaining examples, `python` means the same environment interpreter: use `.\.venv\Scripts\python.exe` on Windows or `.venv/bin/python` on macOS / Linux. To use a supplied example:
+Open `reports/demo/report.html` offline. See the [complete first-use walkthrough](docs/try-it.md) for a comparison with expected values and framework environment guidance.
+
+You do not need an active experiment to try the tool. The demo and first-report fixtures are self-contained; your own exports are optional. Example practice checks the workflow, while practical value needs later evidence from an actual task.
+
+In the remaining examples, `python` means the same environment interpreter: use `.\.venv\Scripts\python.exe` on Windows or `.venv/bin/python` on macOS / Linux. To use a supplied example:
 
 ```sh
 python -m rankprobe audit examples/ties.csv --cutoffs 1,5 --out reports/ties
@@ -139,7 +145,7 @@ python scripts/check_wheel_install.py --wheel dist/rankprobe-0.1.0a4-py3-none-an
 
 The full-test CI matrix targets Python 3.10, 3.12, and 3.13 on Ubuntu and Windows, including fresh built-wheel installation and both command-line entry points. Separate Python 3.15 jobs on both systems check core source installation, distribution builds and the isolated wheel; they do not establish full-suite, NumPy-adapter or native-framework coverage on 3.15. Python 3.14 is not in this matrix. See [installation checks](docs/installation-checks.md) and inspect the exact commit's workflow runs for results.
 
-This is an early `0.1.0a4` implementation. The [verification record](docs/verification.md) distinguishes executed checks from pending evidence. There are no claimed external adopters, revenue, benchmark certification, or published research results. [The validation plan](docs/validation-plan.md) and [roadmap](docs/roadmap.md) describe what would establish practical value. Contributions should add an independently checkable example and document changed semantics. Please report problems with a small synthetic input instead of uploading private data.
+The bounded [initial engineering scope](docs/initial-delivery.md) is complete; `0.1.0a4` remains an alpha in maintenance. The [verification record](docs/verification.md) distinguishes executed checks from pending evidence. There are no claimed independent external adopters, revenue, benchmark certification, or published research results. [The validation plan](docs/validation-plan.md) and [roadmap](docs/roadmap.md) describe what would establish practical value. Contributions should add an independently checkable example and document changed semantics. Please report problems with a small synthetic input instead of uploading private data.
 
 ## License and citation
 

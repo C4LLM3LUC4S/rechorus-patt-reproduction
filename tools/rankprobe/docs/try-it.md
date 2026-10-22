@@ -2,6 +2,10 @@
 
 RankProbe is an early offline checker for recommendation, retrieval, and reranking exports. It helps you inspect ties, repeated candidates, missing queries, inconsistent candidate pools, and uncertain judgments. It does not train a model or certify an experiment.
 
+No active experiment or private prediction file is required to complete this walkthrough. Use the included demo or the original TREC fixtures in section 2; section 3 is optional until you already have a permitted export. There is no need to train a model just to try the checker. With scores but no judgments, structural checks remain available and label-dependent values stay unknown.
+
+The [initial implementation is complete](initial-delivery.md). A successful example walkthrough establishes that the path works for that example; it does not by itself establish a new finding in the reader's work or time saved.
+
 If you are trying it to give feedback, open the [trial record](validation-plan.md#feedback-form) before installing or reading a report. Write down your question and existing judgment first. If you have already completed a step without timing it, mark its time `not measured` rather than guessing.
 
 ## 1. Install locally
