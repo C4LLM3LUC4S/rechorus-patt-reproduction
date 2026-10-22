@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 from io import BytesIO
+import csv
 import json
 import math
 from pathlib import Path
@@ -114,5 +115,102 @@ def test_original_miniature_exercises_cli_recovery_and_unknown_controls(tmp_path
     assert result["scores_only_unknown"] == 6
     assert result["tie_groups"]["rounded"] > result["tie_groups"]["factors"]
     assert result["recovery_csv_byte_identical"]
+    assert result["manual_recovery_csv_byte_identical"]
     assert all(value == 0 for value in result["matched_deltas"]["recovery"].values())
     assert case.digest(archive) == source_hash
+
+
+def test_manual_recovery_preserves_score_bits_order_and_unknown_labels(tmp_path, monkeypatch):
+    capture = tmp_path / "retained.npz"
+    pairs = np.array([[2, 10], [1, 3], [2, 2]], dtype=np.int64)
+    scores = np.array([[3, 4, 5], [np.nextafter(1.0, 2.0), np.nextafter(1.0, 0.0), -0.0]])
+    np.savez(capture, pairs=pairs, scores=scores)
+    before = capture.read_bytes()
+    monkeypatch.setattr(case, "fitted_scores", lambda *_a: pytest.fail("unexpected fit"))
+    monkeypatch.setattr(case, "fetch_archive", lambda *_a: pytest.fail("unexpected download"))
+    out = tmp_path / "manual action"
+    receipt = case.recover(capture, out)
+    with (out / "recovered.csv").open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert [(r["query_id"], r["item_id"]) for r in rows] == [
+        ("ml100k-u1-user:2", "10"), ("ml100k-u1-user:1", "3"), ("ml100k-u1-user:2", "2")]
+    actual = np.array([float(r["score"]) for r in rows])
+    assert actual.tobytes() == scores[1].tobytes()
+    assert set(rows[0]) == {"query_id", "item_id", "score"}
+    assert capture.read_bytes() == before
+    assert receipt["rows"] == 3 and receipt["queries"] == 2
+    assert receipt["judgments_read_or_added"] == 0 and receipt["refitted"] is False
+    assert receipt["capture_sha256"] == hashlib.sha256(before).hexdigest()
+    assert receipt["csv_sha256"] == case.digest(out / "recovered.csv")
+    assert json.loads((out / "recovery.json").read_text(encoding="utf-8")) == receipt
+    report = case.cli_report(tmp_path, "no-judgments", ["audit", str(out / "recovered.csv")])
+    assert report["summary"]["unknown_candidates"] == 3
+    assert report["summary"]["assumed_nonrelevant_candidates"] == 0
+    assert all(v["value"] is None for v in report["metrics"].values())
+
+
+@pytest.mark.parametrize("kind", ["empty", "pair-shape", "pair-float", "pair-zero",
+                                 "duplicate", "score-shape", "float32", "integer-scores",
+                                 "nonfinite", "object", "extra-key", "missing-key", "npy", "broken"])
+def test_manual_recovery_rejects_bad_capture_without_output(tmp_path, kind):
+    capture = tmp_path / "retained.npz"
+    payload = {"pairs": np.array([[1, 2], [1, 3]], dtype=np.int64),
+               "scores": np.array([[1., 2.], [3., 4.]])}
+    if kind == "empty":
+        payload = {"pairs": np.empty((0, 2), dtype=np.int64), "scores": np.empty((2, 0))}
+    elif kind == "pair-shape":
+        payload["pairs"] = np.array([1, 2])
+    elif kind == "pair-float":
+        payload["pairs"] = payload["pairs"].astype(float)
+    elif kind == "pair-zero":
+        payload["pairs"][0, 0] = 0
+    elif kind == "duplicate":
+        payload["pairs"][1] = payload["pairs"][0]
+    elif kind == "score-shape":
+        payload["scores"] = np.ones((2, 3))
+    elif kind == "float32":
+        payload["scores"] = payload["scores"].astype(np.float32)
+    elif kind == "integer-scores":
+        payload["scores"] = payload["scores"].astype(np.int64)
+    elif kind == "nonfinite":
+        payload["scores"][1, 0] = np.nan
+    elif kind == "object":
+        payload["pairs"] = payload["pairs"].astype(object)
+    elif kind == "extra-key":
+        payload["unrelated"] = np.array([1])
+    elif kind == "missing-key":
+        del payload["scores"]
+    with capture.open("xb") as handle:
+        if kind == "npy":
+            np.save(handle, np.ones((2, 2)))
+        elif kind == "broken":
+            handle.write(b"not a score capture")
+        else:
+            np.savez(handle, **payload)
+    before = capture.read_bytes()
+    out = tmp_path / "new"
+    with pytest.raises(case.GateError, match="recovery:"):
+        case.recover(capture, out)
+    assert not out.exists() and capture.read_bytes() == before
+
+
+def test_manual_recovery_cli_refuses_existing_output_then_succeeds_fresh(tmp_path, monkeypatch, capsys):
+    out = tmp_path / "keep"
+    out.mkdir()
+    sentinel = out / "original.txt"
+    sentinel.write_bytes(b"preserve previous attempt")
+    capture = tmp_path / "absent.npz"
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "--recover", str(capture), "--out", str(out)])
+    assert case.main() == 2
+    assert "new directory" in json.loads(capsys.readouterr().err)["reason"]
+    assert sentinel.read_bytes() == b"preserve previous attempt"
+    np.savez(capture, pairs=np.array([[1, 2]]), scores=np.array([[1.], [1.23456789012345]]))
+    fresh = tmp_path / "fresh"
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "--recover", str(capture), "--out", str(fresh)])
+    monkeypatch.setattr(case, "verified_inputs", lambda *_a: pytest.fail("unexpected rating read"))
+    monkeypatch.setattr(case, "fitted_scores", lambda *_a: pytest.fail("unexpected fit"))
+    monkeypatch.setattr(case, "fetch_archive", lambda *_a: pytest.fail("unexpected download"))
+    assert case.main() == 0
+    assert json.loads(capsys.readouterr().out)["rows"] == 1
+    assert (fresh / "recovered.csv").is_file()
+    assert sentinel.read_bytes() == b"preserve previous attempt"

@@ -20,6 +20,7 @@ import sys
 import time
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
+import zlib
 
 from rankprobe.io import read_predictions, read_qrels
 from rankprobe.metrics import evaluate_metrics
@@ -178,6 +179,57 @@ def write_predictions(path, records, scores, *, rounded=False):
                              format(float(score), ".1f" if rounded else ".17g")))
 
 
+def recover(capture, output):
+    """Re-export this case's retained factor scores without fitting or labels."""
+    out = new_output(output)
+    capture = Path(capture)
+    require(capture.is_file() and not capture.is_symlink(),
+            "recovery: expected a regular retained-scores.npz capture")
+    try:
+        import numpy as np
+        from numpy.lib.npyio import NpzFile
+    except ImportError as exc:
+        raise GateError('optional case needs NumPy: pip install -e ".[adapters]"') from exc
+    before = digest(capture)
+    try:
+        retained = np.load(capture, allow_pickle=False)
+        require(isinstance(retained, NpzFile),
+                "recovery: expected named pairs/scores NPZ arrays, not a single NPY array")
+        with retained:
+            require(sorted(retained.files) == ["pairs", "scores"],
+                    "recovery: expected only pairs and scores from this case's capture")
+            pairs, scores = retained["pairs"], retained["scores"]
+            require(pairs.ndim == 2 and pairs.shape[1] == 2 and len(pairs) > 0
+                    and pairs.dtype.kind in "iu" and bool(np.all(pairs > 0)),
+                    "recovery: pairs must be nonempty positive integer user/item rows")
+            require(len(np.unique(pairs, axis=0)) == len(pairs),
+                    "recovery: repeated user/item pairs; obtain an intact original capture")
+            require(scores.shape == (2, len(pairs)) and scores.dtype.kind == "f"
+                    and scores.dtype.itemsize == 8 and bool(np.all(np.isfinite(scores))),
+                    "recovery: scores must be two finite binary64 vectors in bias/factors order")
+    except GateError:
+        raise
+    except (ValueError, OSError, KeyError, BadZipFile, EOFError, zlib.error) as exc:
+        raise GateError("recovery: unreadable capture; keep it and obtain an intact original "
+                        "pairs/scores NPZ, without reconstructing scores from rounded values") from exc
+    require(digest(capture) == before, "recovery: capture changed while reading; retry from a stable copy")
+    out.mkdir()
+    csv_path = out / "recovered.csv"
+    # The shared writer ignores rating/timestamp; no labels are read or invented.
+    records = ((int(user), int(item), None, None) for user, item in pairs)
+    write_predictions(csv_path, list(records), scores[1])
+    require(digest(capture) == before, "recovery: source capture changed during export")
+    receipt = {"status": "passed", "operation": "reexport_retained_factor_scores",
+               "capture_sha256": before, "csv_sha256": digest(csv_path),
+               "rows": len(pairs), "queries": len(np.unique(pairs[:, 0])),
+               "score_source": "second binary64 vector in this case's retained capture",
+               "judgments_read_or_added": 0, "refitted": False,
+               "capture_unchanged": True,
+               "scope": "format/export check; source identity and quality are not certified"}
+    (out / "recovery.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+    return receipt
+
+
 def independent_metrics(records, scores):
     """Independent binary RR/DCG formula, lexical IDs and zero-IDCG convention."""
     require(len(records) == len(scores), "oracle: source record and score lengths differ")
@@ -257,6 +309,9 @@ def check(archive, output):
         write_predictions(predictions["recovered"], test, retained["scores"][1])
     require(predictions["factors"].read_bytes() == predictions["recovered"].read_bytes(),
             "recovery: fresh export differs from original score-bearing CSV")
+    manual = recover(capture, out / "manual-recovery")
+    require(manual["csv_sha256"] == digest(predictions["factors"]),
+            "recovery: separate recovery action differs from original factor export")
     qrels_path = out / "observed-judgments.csv"
     with qrels_path.open("x", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
@@ -323,6 +378,7 @@ def check(archive, output):
         "matched_deltas": deltas, "tie_groups": ties, "independent_numeric_comparisons": comparisons,
         "scores_only_unknown": len(test), "scores_only_metrics_unavailable": True,
         "assumed_nonrelevant_candidates": 0, "recovery_csv_byte_identical": True,
+        "manual_recovery_csv_byte_identical": True,
         "archive_capture_and_exports_unchanged": True, "local_file_sha256": originals,
         "python": platform.python_version(), "machine_fit_seconds": fit_seconds,
         "evidence_scope": "public real ratings and newly fitted NumPy models; deliberately rounded export control",
@@ -338,13 +394,17 @@ def main():
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--archive", type=Path, help="existing fixed official ZIP, read-only")
     source.add_argument("--fetch", type=Path, help="explicitly download fixed ZIP to a new file")
-    parser.add_argument("--out", type=Path, required=True, help="new directory; only summary.json is aggregate")
+    source.add_argument("--recover", type=Path, help="re-export this case's retained NPZ; no fetch or fit")
+    parser.add_argument("--out", type=Path, required=True, help="new directory; row-level files stay local")
     args = parser.parse_args()
     try:
         new_output(args.out)
-        if args.fetch:
-            fetch_archive(args.fetch)
-        result = check(args.archive or args.fetch, args.out)
+        if args.recover:
+            result = recover(args.recover, args.out)
+        else:
+            if args.fetch:
+                fetch_archive(args.fetch)
+            result = check(args.archive or args.fetch, args.out)
     except (ValueError, OSError, KeyError, BadZipFile, EOFError, subprocess.TimeoutExpired) as exc:
         reason = str(exc) if isinstance(exc, GateError) else type(exc).__name__
         print(json.dumps({"status": "failed", "reason": reason}), file=sys.stderr)

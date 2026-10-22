@@ -1,5 +1,13 @@
 # Verification record
 
+## Separate retained-score action
+
+The MovieLens checker now exposes `--recover` for its own record-indexed NPZ capture. The [manual workflow](../examples/movielens-scores/README.md#inspect-recover-and-recheck-without-refitting) verifies capture identity against the original summary, performs the action without fitting or downloading, and checks both file identity and the original evaluation protocol afterward. Structural validation cannot authenticate model provenance.
+
+A new local execution reused the retained public-data capture without rerunning model fitting: three actual processes performed recovery, a same-protocol comparison and an unlabeled audit. All 20,000 exported rows were byte-identical to the original factor CSV, all 459 query pools matched, six MRR/NDCG deltas were zero and each run retained six tie groups. The scores-only audit kept 20,000 unknown and zero assumed labels; Recall remained unavailable. Twenty-three original source/output/report/candidate files stayed unchanged. This is software workflow acceptance, not a new human trial or measured time saving.
+
+Sixteen added regressions cover exact binary64 values and negative zero, ID/order preservation, unknown labels, malformed/ambiguous captures rejected before output, and an existing-output failure followed by a fresh successful recovery without any fitting, download or rating read. All 31 checker tests passed locally. The existing public-data CI check also exercises the separate recovery function and requires its CSV hash to equal the original factor export; inspect the exact current commit's CI separately.
+
 ## First-report missing-query recovery
 
 The original invented TREC example now includes an explicitly authored complete control and a [recovery command](../examples/trec/README.md#restore-the-omitted-query-and-recheck). The actual CLI recheck restores the supplied q2 records without changing the shared q1/q3 records, judgments, tie policy or missing-label policy. Both runs submit three queries, with two metric-eligible queries at k=2; MRR is 0.25, linear NDCG is `1 / (2 * log2(3))`, and matched deltas are zero. The original report had only q1 in its matched metric average; changing that average's population is not a ranking regression.

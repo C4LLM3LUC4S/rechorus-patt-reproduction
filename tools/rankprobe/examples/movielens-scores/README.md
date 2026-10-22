@@ -41,6 +41,30 @@ For an existing fixed original ZIP, use `--archive artifacts/ml100k.zip` instead
 
 Four actual core CLI paths create local HTML/JSON reports: the two fitted models, one scores-only audit, exact-versus-rounded scores, and exact-versus-recovered scores. `summary.json` contains aggregate evidence suitable for review. Other generated files retain dataset identifiers and source-derived rows; keep them local. Core audits themselves remain offline; only explicit `--fetch` downloads this dataset.
 
+## Inspect, recover and recheck without refitting
+
+The full checker performs recovery automatically. To exercise the action separately, keep its completed `ml100k-case` directory and use this source-checkout path. It needs NumPy in the same environment and does not download, refit or read judgments.
+
+1. Open `artifacts/ml100k-case/rounding/report.html`. Compare **exact** and **rounded within each metric**, then inspect each run's score-tie findings. The same factor model now has many more ties; an NDCG increase alone does not establish a better model. The rounded input here is deliberate.
+2. Check the capture's SHA256 against `local_file_sha256["retained-scores.npz"]` in the original `summary.json`. Use `Get-FileHash` in PowerShell or `sha256sum` in a POSIX shell. If they differ, preserve both files and locate the correct retained capture. A readable NPZ does not prove it belongs to the run.
+3. Re-export the **factor** vector from that capture into a fresh directory:
+
+```sh
+python scripts/check_movielens_scores.py --recover artifacts/ml100k-case/retained-scores.npz --out artifacts/ml100k-manual-recovery
+```
+
+Stop if the command fails. Preserve the failure output and choose a new destination for a corrected attempt. The helper rejects existing destinations before reading inputs and validates pair IDs, unique pairs, array shapes and finite binary64 scores before writing. It preserves original row order and decimal score precision. It does not accept the one-positive matrix bridge's NPZ format or repair a damaged capture with rounded scores. `recovery.json` records capture/output hashes and row/query counts, but does not authenticate the capture's model identity.
+
+4. Only after successful recovery, compare with the retained **exact** export using the original judgments and protocol:
+
+```sh
+python -m rankprobe compare --run exact=artifacts/ml100k-case/factors.csv --run recovered=artifacts/ml100k-manual-recovery/recovered.csv --qrels artifacts/ml100k-case/observed-judgments.csv --cutoffs 1,5,10 --tie-policy item_id --gain linear --relevance-threshold 0 --unjudged unknown --out artifacts/ml100k-manual-recheck
+```
+
+5. Open `artifacts/ml100k-manual-recheck/report.html`. Require all **459** query pools to match, zero matched deltas for all six MRR/NDCG measures, and **6** tie groups in each run. Compare the CSV's SHA256 with the original `summary.json` factor-CSV hash as well: equal aggregate metrics alone cannot prove faithful restoration. Recall stays unavailable. Original rounded/exact reports, capture and judgments remain unchanged.
+
+This checks one export action on actual public-data scores. It neither repairs an unretained historical score nor shows that someone understood the report, changed a decision or saved time. Record those outcomes prospectively if you try this flow yourself; distinguish guided practice from independent use.
+
 ## Executed observation
 
 The Windows/Python 3.12.5, NumPy 2.5.4 run passed **11,058** independent per-query, macro and paired-delta comparisons at absolute tolerance `1e-12`. A separate Python formula sorts scores/lexical IDs and computes binary reciprocal rank and DCG/IDCG; it checks every query through the public metric API and each actual CLI macro. The installed-core unknown-label control retains **20,000 unknown candidates**, zero assumed labels and no label-dependent values when qrels are absent.
