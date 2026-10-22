@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.1.0a4 — MRR eligibility from known prefixes
+## 0.1.0a4 — 2026-10-22
+
+- Publish the complete first-version GitHub distribution: curated offline bundle, wheel, source distribution, SHA-256 checksums, source/CI receipt, default-branch entry points and a bug-report form. The alpha label and evidence limits remain explicit.
 
 - Added a bounded fractional-label linear NDCG reference case. The original binary-exact fractional grades stay unchanged; only an oracle copy is scaled to integer gains, with explicit mapping and input-integrity controls. Fractional exponential gain and extreme-value parity remain outside this check.
 - Unsupported-extension errors identify the appropriate `--input-format` or `--qrels-format` CLI flag alongside the Python argument. Input parsing and format selection remain explicit.
@@ -9,7 +11,7 @@
 - MRR results record `eligibility_rule=known_first_relevant_prefix` in JSON and HTML coverage details. MRR deltas require the same explicit rule on both sides; reports without it must be recomputed from their original inputs before comparison.
 - This refines the deliberately conservative 0.1.0a3 eligibility contract. Preserve earlier reports with their version and do not subtract old and new conditional averages.
 
-## Unreleased — installation, explicit input conversion and reference checks
+### Additional changes included in this distribution
 
 - Mark the bounded alpha-4 engineering scope complete and enter maintenance. Consolidate delivery/validation boundaries and explain that no active experiment is required for the included walkthrough; optional judgments, public examples and real-work adoption remain distinct.
 - Expose a separate MovieLens retained-score recovery action in the source-checkout checker. Re-export the exact factor vector without downloading, refitting or reading labels, then follow the documented file-identity and same-protocol recheck; this is a bounded case helper, not a generic score reconstruction tool.

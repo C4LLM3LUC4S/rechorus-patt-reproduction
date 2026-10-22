@@ -1,12 +1,12 @@
 # RankProbe
 
-**Initial implementation complete — `0.1.0a4` alpha, in maintenance.** See the [delivery scope and maintenance policy](docs/initial-delivery.md). Independent adoption and measured human benefit remain future validation work.
+**Community release `0.1.0a4` — complete first-version distribution, still alpha.** See the [delivery scope and maintenance policy](docs/initial-delivery.md). Independent adoption and measured human benefit remain future validation work.
 
 **Find out when a ranking score depends on ties, duplicated candidates, or a changed evaluation pool.**
 
 RankProbe is a local, model-free audit tool for recommendation and retrieval experiments. Give it candidate scores and optional relevance judgments; it produces a readable HTML report and machine-readable JSON with examples, metric assumptions, and sensitivity results. No model inference, cloud account, or API key is needed. The core uses the Python standard library.
 
-For a trial, share the [RankProbe package page](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/tree/feature/rankprobe-alpha/tools/rankprobe) and [first-report walkthrough](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/blob/feature/rankprobe-alpha/tools/rankprobe/docs/try-it.md). Both links open the alpha's own directory inside the reproduction repository.
+**[Download the complete offline bundle](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/releases/download/v0.1.0a4/RankProbe-0.1.0a4.zip)** · [Release notes and checksums](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/releases/tag/v0.1.0a4). Extract it and open `START_HERE.md`; no Git or package-index connection is needed to install its bundled wheel. [Public source](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/tree/main/tools/rankprobe) is on the default branch.
 
 [中文说明](README.zh-CN.md) · [Input contract](docs/input-format.md) · [Metric semantics](docs/metrics.md) · [CLI / Python API](docs/usage.md) · [First local report](docs/try-it.md) · [Limitations](docs/limitations.md)
 
@@ -20,17 +20,14 @@ Have saved MTEB retrieval predictions? The [score-file recipe](docs/mteb-workflo
 
 ## Quick start
 
-Requires Python 3.10 or newer. Install from this checkout; no PyPI release is claimed.
-
-The alpha is currently incubated in an isolated directory of the existing
-reproduction repository. Without Git, [download the source ZIP](https://codeload.github.com/C4LLM3LUC4S/rechorus-patt-reproduction/zip/refs/heads/feature/rankprobe-alpha), extract it, open a terminal in the extracted repository folder, and run `cd tools/rankprobe`.
+Requires Python 3.10 or newer. The complete [GitHub release bundle](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/releases/tag/v0.1.0a4) includes offline instructions, packages, source and original fixtures. The commands below use a source checkout; PyPI is not part of this release.
 
 On Windows, choose a short extraction path. If creating the environment fails with a long-path hint from pip/ensurepip, start again from a shorter folder.
 
 Or obtain it with Git:
 
 ```sh
-git clone --branch feature/rankprobe-alpha https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction.git
+git clone --branch main https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction.git
 cd rechorus-patt-reproduction/tools/rankprobe
 ```
 

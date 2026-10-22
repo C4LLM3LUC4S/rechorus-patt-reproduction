@@ -11,3 +11,7 @@ abstract: >-
   A local tool for inspecting candidate-score ties, duplicated items, relevance
   coverage, and run comparability in exported ranking evaluations. The software
   reports its evaluation assumptions and does not certify complete experiments.
+
+repository-code: "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction"
+url: "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/tree/main/tools/rankprobe"
+date-released: 2026-10-22

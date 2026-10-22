@@ -512,3 +512,49 @@ jobs:
             ${{ runner.temp }}/rankprobe-mteb-environment.json
           if-no-files-found: ignore
           retention-days: 14
+
+
+  github-release:
+    name: Publish checked RankProbe GitHub distribution
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'C4LLM3LUC4S/rechorus-patt-reproduction'
+    needs: [test, python315-core, trec-reference, beir-workflow, recbole-workflow, rechorus-workflow, mteb-workflow]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: rankprobe-github-release
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: tools/rankprobe
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Build the accepted source
+        run: |
+          python -m pip install . build
+          python -m build
+          python scripts/check_distribution.py
+          python scripts/check_wheel_install.py --wheel dist/*.whl
+      - name: Assemble tracked-source offline bundle and verify manifest
+        env:
+          CI_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python scripts/build_release.py --out "$RUNNER_TEMP/rankprobe-release" --ci-url "$CI_URL"
+      - name: Create draft, verify downloaded assets, then publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish_github_release.py --assets "$RUNNER_TEMP/rankprobe-release" --notes docs/releases/0.1.0a4.md --publish
+      - name: Retain release build assets for inspection on failure
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rankprobe-github-release-assets
+          path: ${{ runner.temp }}/rankprobe-release
+          if-no-files-found: ignore
+          retention-days: 14

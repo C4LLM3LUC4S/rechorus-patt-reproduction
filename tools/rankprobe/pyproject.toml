@@ -23,6 +23,13 @@ classifiers = [
 ]
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/tree/main/tools/rankprobe"
+Documentation = "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/blob/main/tools/rankprobe/docs/try-it.md"
+Source = "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/tree/main/tools/rankprobe"
+Issues = "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/issues"
+Releases = "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/releases"
+
 [project.optional-dependencies]
 dev = ["pytest>=8", "build>=1.2", "ruff>=0.9", "numpy>=1.24"]
 adapters = ["numpy>=1.24"]

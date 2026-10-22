@@ -244,7 +244,7 @@ def read_qrels(path: str | Path, *, format: str = "auto") -> dict[str, dict[str,
                         "original and check its grade definition and evaluator. "
                         "--unjudged does not reinterpret them. See "
                         "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/"
-                        "blob/feature/rankprobe-alpha/tools/rankprobe/docs/input-format.md"
+                        "blob/main/tools/rankprobe/docs/input-format.md"
                         "#source-specific-negative-judgments"
                     )
                 labels = result.setdefault(query, {})
@@ -255,7 +255,7 @@ def read_qrels(path: str | Path, *, format: str = "auto") -> dict[str, dict[str,
                         "if it represents subtopics/intents, use a scope-appropriate ordinary "
                         "export or the native evaluator. See "
                         "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/"
-                        "blob/feature/rankprobe-alpha/tools/rankprobe/docs/input-format.md"
+                        "blob/main/tools/rankprobe/docs/input-format.md"
                         "#subtopic-and-diversity-judgments"
                     )
                 labels[item] = None if relevance == -1 else relevance

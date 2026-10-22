@@ -58,7 +58,7 @@ def test_unsupported_negative_grade_is_not_repaired_by_protocol_flags(
     assert "--unjudged does not reinterpret them" in result.stderr
     assert (
         "https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/"
-        "blob/feature/rankprobe-alpha/tools/rankprobe/docs/input-format.md"
+        "blob/main/tools/rankprobe/docs/input-format.md"
         "#source-specific-negative-judgments"
     ) in result.stderr
     assert "Traceback" not in result.stderr

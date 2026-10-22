@@ -1,15 +1,15 @@
 # RankProbe
 
-**工程首版已完成，进入维护阶段。** 当前版本仍是 `0.1.0a4` alpha。已交付范围、验证边界和维护规则见 [首版交付说明](docs/initial-delivery.md)；独立采用与实际收益继续作为后续验证事项。
+**工程首版完整发行，进入维护阶段。** 当前版本仍是 `0.1.0a4` alpha。已交付范围、验证边界和维护规则见 [首版交付说明](docs/initial-delivery.md)；独立采用与实际收益继续作为后续验证事项。
 
-首个 alpha 暂放在现有复现仓库的独立目录与分支。试用时可分享直达 [RankProbe 项目页](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/tree/feature/rankprobe-alpha/tools/rankprobe)和[首次报告指南](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/blob/feature/rankprobe-alpha/tools/rankprobe/docs/try-it.md)的链接。没有 Git 时，可[下载源码 ZIP](https://codeload.github.com/C4LLM3LUC4S/rechorus-patt-reproduction/zip/refs/heads/feature/rankprobe-alpha)，解压，在解压后的仓库文件夹打开终端，再运行 `cd tools/rankprobe`。
+**[下载完整离线发行包](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/releases/download/v0.1.0a4/RankProbe-0.1.0a4.zip)** · [发行说明与校验文件](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/releases/tag/v0.1.0a4)。完整解压后打开 `START_HERE.md`，即可离线安装随包提供的 wheel；不需要 Git、API 密钥或现成实验。[公开源码](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/tree/main/tools/rankprobe)位于默认分支的独立目录，原课程项目保留。
 
 Windows 建议选择较短的解压路径；如果创建环境时 pip/ensurepip 提示路径过长，请换一个较短的文件夹重新开始。
 
 也可以用 Git 获取：
 
 ```sh
-git clone --branch feature/rankprobe-alpha https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction.git
+git clone --branch main https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction.git
 cd rechorus-patt-reproduction/tools/rankprobe
 ```
 
@@ -29,7 +29,7 @@ RankProbe 在本地读取候选分数和可选的相关性标签，生成 HTML �
 
 ## 快速开始
 
-需要 Python 3.10 或以上版本。目前从本地源码安装，尚未声称已发布到 PyPI。
+需要 Python 3.10 或以上版本。完整发行包按其中的 `START_HERE.md` 离线安装；下面命令用于源码方式安装。本次发行不包含 PyPI。
 
 在这个包的文件夹中创建独立环境，直接使用它的解释器，无需激活。
 
