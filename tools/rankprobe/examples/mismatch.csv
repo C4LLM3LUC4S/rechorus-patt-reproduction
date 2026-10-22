@@ -1,0 +1,6 @@
+query_id,item_id,score,relevance
+q1,a,0.9,1
+q1,b,0.4,0
+q3,d,0.8,0
+q3,e,0.7,1
+q3,f,0.2,0

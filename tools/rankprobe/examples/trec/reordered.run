@@ -1,0 +1,5 @@
+# Original synthetic case: same shared-query scores, q1 order reversed, q2 missing.
+q1 Q0 doc_a 1 1.0 reordered
+q1 Q0 doc_b 2 1.0 reordered
+q3 Q0 doc_x 1 0.8 reordered
+q3 Q0 doc_y 2 0.5 reordered

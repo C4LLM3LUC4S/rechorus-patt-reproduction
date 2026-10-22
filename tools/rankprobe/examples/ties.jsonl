@@ -1,0 +1,6 @@
+{"query_id":"q1","item_id":"z_positive","score":1,"relevance":1}
+{"query_id":"q1","item_id":"a_negative","score":1,"relevance":0}
+{"query_id":"q1","item_id":"b_negative","score":1,"relevance":0}
+{"query_id":"q2","item_id":"z_positive","score":0.5,"relevance":1}
+{"query_id":"q2","item_id":"a_negative","score":0.5,"relevance":0}
+{"query_id":"q2","item_id":"b_negative","score":0.5,"relevance":0}

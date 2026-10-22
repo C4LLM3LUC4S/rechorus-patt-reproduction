@@ -1,3 +1,29 @@
+# RankProbe — exported ranking diagnostics
+
+**Community distribution / 社区发行：`0.1.0a4` (alpha).**
+
+Inspect recommendation/retrieval score ties, duplicates, changed evaluation pools
+and metric coverage. Local HTML/JSON reports; Python 3.10+; no core runtime
+dependencies, model, API key or cloud account required.
+
+检查推荐与检索评测中的同分、重复候选、集合变化和指标覆盖范围，生成本地报告。
+
+- **[Download the complete offline bundle / 下载完整离线包](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/releases/download/v0.1.0a4/RankProbe-0.1.0a4.zip)**
+- [Versioned release and checksums / 发行说明与校验](https://github.com/C4LLM3LUC4S/rechorus-patt-reproduction/releases/tag/v0.1.0a4)
+- [RankProbe source and English guide](tools/rankprobe/README.md) · [中文说明](tools/rankprobe/README.zh-CN.md)
+- [First report](tools/rankprobe/docs/try-it.md) · [Metric contract](tools/rankprobe/docs/metrics.md) · [Limitations](tools/rankprobe/docs/limitations.md)
+
+Extract the curated ZIP and open `START_HERE.md`. It contains RankProbe source,
+examples, wheel, source distribution and an integrity manifest. The original
+course reproduction below is separate; you do not need its GPU stack to use
+RankProbe. [RankProbe's MIT license](tools/rankprobe/LICENSE) applies to that
+package; it does not relicense the original coursework or upstream materials.
+
+完整解压发行包后打开 `START_HERE.md`，无需先做实验。当前是可供社区使用的 alpha；
+缺失标签保持未知，工具不认证模型质量，也不宣称已证实普遍节时或实际采用。
+
+---
+
 # ReChorus 中的概率注意力序列推荐
 
 实现 KDD 2024 论文 **Probabilistic Attention for Sequential Recommendation** 的基础 PAtt₂，并比较 SASRec、GRU4Rec 和长度校准变体 LC-PAtt₂。本仓库不是官方实现，不包含 PAtt₃ 和 DPAtt。

@@ -1,0 +1,3 @@
+query_id,item_id,relevance
+query_000001,positive,1
+query_000001,other,0
